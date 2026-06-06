@@ -1,0 +1,644 @@
+"use strict";
+var Truco = (() => {
+  var __defProp = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames(from))
+        if (!__hasOwnProp.call(to, key) && key !== except)
+          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+  // src/web/browser-entry.ts
+  var browser_entry_exports = {};
+  __export(browser_entry_exports, {
+    simulate: () => simulate
+  });
+
+  // src/core/betting.ts
+  function initBetting() {
+    return { level: -1, lastRaiser: null };
+  }
+  function currentValue(s, rules) {
+    return s.level < 0 ? rules.baseValue : rules.bettingLevels[s.level].value;
+  }
+  function isMaxed(s, rules) {
+    return s.level >= rules.bettingLevels.length - 1;
+  }
+  function nextLevel(s, rules) {
+    if (isMaxed(s, rules)) return null;
+    const index = s.level + 1;
+    const lvl = rules.bettingLevels[index];
+    return { index, name: lvl.name, value: lvl.value };
+  }
+  function canPropose(s, team, rules) {
+    if (isMaxed(s, rules)) return false;
+    return s.lastRaiser === null || s.lastRaiser !== team;
+  }
+  function forfeitValueOnRun(s, rules) {
+    return currentValue(s, rules);
+  }
+  function acceptRaise(s, proposer, rules) {
+    if (isMaxed(s, rules)) {
+      throw new Error("Nao ha aumento para aceitar: aposta no maximo.");
+    }
+    return { level: s.level + 1, lastRaiser: proposer };
+  }
+
+  // src/core/types.ts
+  function cardsEqual(a, b) {
+    return a.rank === b.rank && a.suit === b.suit;
+  }
+
+  // src/core/deck.ts
+  var ALL_SUITS = [
+    "ouros" /* Ouros */,
+    "espadas" /* Espadas */,
+    "copas" /* Copas */,
+    "paus" /* Paus */
+  ];
+  var ALL_RANKS = [
+    "4" /* Quatro */,
+    "5" /* Cinco */,
+    "6" /* Seis */,
+    "7" /* Sete */,
+    "Q" /* Dama */,
+    "J" /* Valete */,
+    "K" /* Rei */,
+    "A" /* As */,
+    "2" /* Dois */,
+    "3" /* Tres */
+  ];
+  function buildDeck() {
+    const deck = [];
+    for (const suit of ALL_SUITS) {
+      for (const rank of ALL_RANKS) {
+        deck.push({ rank, suit });
+      }
+    }
+    return deck;
+  }
+  function shuffle(cards, rng = Math.random) {
+    const out = cards.slice();
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      const tmp = out[i];
+      out[i] = out[j];
+      out[j] = tmp;
+    }
+    return out;
+  }
+  function deal(numPlayers, cardsPerPlayer, rng = Math.random) {
+    const needed = numPlayers * cardsPerPlayer + 1;
+    const deck = shuffle(buildDeck(), rng);
+    if (deck.length < needed) {
+      throw new Error(
+        `Baralho insuficiente: precisa de ${needed} cartas, tem ${deck.length}.`
+      );
+    }
+    const hands = Array.from({ length: numPlayers }, () => []);
+    let idx = 0;
+    for (let c = 0; c < cardsPerPlayer; c++) {
+      for (let seat = 0; seat < numPlayers; seat++) {
+        hands[seat].push(deck[idx++]);
+      }
+    }
+    const vira = deck[idx++];
+    const rest = deck.slice(idx);
+    return { hands, vira, rest };
+  }
+
+  // src/core/ranking.ts
+  function manilhaRank(vira, rules) {
+    const order = rules.rankOrder;
+    const idx = order.indexOf(vira.rank);
+    if (idx < 0) {
+      throw new Error(`Rank da vira invalido para esta variante: ${vira.rank}`);
+    }
+    return order[(idx + 1) % order.length];
+  }
+  function isManilha(card, vira, rules) {
+    return card.rank === manilhaRank(vira, rules);
+  }
+  function cardStrength(card, vira, rules) {
+    const commonRange = rules.rankOrder.length;
+    if (isManilha(card, vira, rules)) {
+      const suitRank = rules.manilhaSuitOrder.indexOf(card.suit);
+      if (suitRank < 0) {
+        throw new Error(`Naipe sem ordem definida para manilha: ${card.suit}`);
+      }
+      return commonRange + suitRank;
+    }
+    const rankIdx = rules.rankOrder.indexOf(card.rank);
+    if (rankIdx < 0) {
+      throw new Error(`Rank invalido para esta variante: ${card.rank}`);
+    }
+    return rankIdx;
+  }
+  function compareCards(a, b, vira, rules) {
+    return cardStrength(a, vira, rules) - cardStrength(b, vira, rules);
+  }
+
+  // src/core/vaza.ts
+  function resolveVaza(plays, vira, teamOfSeat, rules) {
+    if (plays.length === 0) {
+      throw new Error("Vaza sem jogadas.");
+    }
+    let maxStrength2 = -Infinity;
+    for (const p of plays) {
+      const s = cardStrength(p.card, vira, rules);
+      if (s > maxStrength2) maxStrength2 = s;
+    }
+    const topSeats = plays.filter((p) => cardStrength(p.card, vira, rules) === maxStrength2).map((p) => p.seat);
+    const topTeams = new Set(topSeats.map((seat) => teamOfSeat[seat]));
+    if (topTeams.size === 1) {
+      const leaderSeat = topSeats[0];
+      return {
+        winningTeam: teamOfSeat[leaderSeat],
+        winningSeat: leaderSeat,
+        tied: false
+      };
+    }
+    return { winningTeam: null, winningSeat: null, tied: true };
+  }
+
+  // src/core/hand.ts
+  function decideHand(results, rules) {
+    const r1 = results[0];
+    const r2 = results[1];
+    const r3 = results[2];
+    if (!r2) return "continue";
+    const t1 = r1.winningTeam;
+    const t2 = r2.winningTeam;
+    if (t1 !== null && t2 !== null) {
+      if (t1 === t2) return t1;
+      if (!r3) return "continue";
+      if (r3.winningTeam !== null) return r3.winningTeam;
+      return t1;
+    }
+    if (t1 === null && t2 !== null) return t2;
+    if (t1 !== null && t2 === null) return t1;
+    if (!r3) return "continue";
+    if (r3.winningTeam !== null) return r3.winningTeam;
+    return rules.cancelOnFullTie ? "cancel" : "cancel";
+  }
+  function firstOpponentAfter(seat, team, teamOfSeat) {
+    const n = teamOfSeat.length;
+    for (let k = 1; k < n; k++) {
+      const s = (seat + k) % n;
+      if (teamOfSeat[s] !== team) return s;
+    }
+    throw new Error("Nenhum adversario encontrado (mesa de uma equipe so?).");
+  }
+  async function playHand(cfg) {
+    const { rules, players, teamOfSeat, scores, firstSeat, observer } = cfg;
+    const n = rules.numPlayers;
+    const dealt = deal(n, rules.cardsPerPlayer, cfg.rng);
+    const vira = dealt.vira;
+    const manilha = manilhaRank(vira, rules);
+    const hands = dealt.hands.map((h) => h.slice());
+    let betting = initBetting();
+    const vazaResults = [];
+    const allVazaPlays = [];
+    let leader = firstSeat;
+    const threshold = rules.pointsToWin - 1;
+    const teamsAtThreshold = [];
+    for (let t = 0; t < rules.numTeams; t++) {
+      if (scores[t] === threshold) teamsAtThreshold.push(t);
+    }
+    const onzeActive = rules.maoDeOnze && teamsAtThreshold.length > 0;
+    const onzeBoth = onzeActive && teamsAtThreshold.length >= 2;
+    const onzeSingle = onzeActive && teamsAtThreshold.length === 1;
+    const noTruco = onzeActive;
+    const blind = onzeBoth;
+    const effectiveBase = onzeSingle ? rules.maoDeOnzeValue : rules.baseValue;
+    const valueNow = () => betting.level < 0 ? effectiveBase : currentValue(betting, rules);
+    observer?.onDeal?.({
+      vira,
+      manilha,
+      leader,
+      hands: hands.map((h) => h.slice())
+    });
+    const buildView = (seat, currentVazaPlays) => ({
+      seat,
+      team: teamOfSeat[seat],
+      hand: hands[seat],
+      vira,
+      manilha,
+      rules,
+      scores,
+      teamOfSeat,
+      completedVazaPlays: allVazaPlays,
+      completedVazaResults: vazaResults,
+      currentVazaPlays,
+      handValue: valueNow(),
+      blind
+    });
+    if (onzeSingle) {
+      const teamAt11 = teamsAtThreshold[0];
+      observer?.onMaoDeOnze?.({ mode: "single", teamAt11, value: effectiveBase });
+      let deciderSeat = firstSeat;
+      for (let k = 0; k < n; k++) {
+        const s = (firstSeat + k) % n;
+        if (teamOfSeat[s] === teamAt11) {
+          deciderSeat = s;
+          break;
+        }
+      }
+      const partnerHands = [];
+      for (let s = 0; s < n; s++) {
+        if (s !== deciderSeat && teamOfSeat[s] === teamAt11) {
+          partnerHands.push(hands[s].slice());
+        }
+      }
+      const oppSeat = firstOpponentAfter(deciderSeat, teamAt11, teamOfSeat);
+      const opponentTeam = teamOfSeat[oppSeat];
+      const ctx = {
+        partnerHands,
+        value: effectiveBase,
+        foldValue: rules.baseValue
+      };
+      const decision = await players[deciderSeat].decideMaoDeOnze(
+        buildView(deciderSeat, []),
+        ctx
+      );
+      observer?.onMaoDeOnzeDecision?.({ team: teamAt11, decision });
+      if (decision === "fold") {
+        const result = {
+          winningTeam: opponentTeam,
+          points: rules.baseValue,
+          reason: "fold"
+        };
+        observer?.onHandEnd?.(result);
+        return result;
+      }
+    } else if (onzeBoth) {
+      observer?.onMaoDeOnze?.({ mode: "both", value: effectiveBase });
+    }
+    const negotiate = async (starter, currentVazaPlays) => {
+      let proposer = starter;
+      for (; ; ) {
+        const lvl = nextLevel(betting, rules);
+        if (!lvl) return null;
+        const proposingTeam = teamOfSeat[proposer];
+        const proposal = {
+          proposer,
+          proposingTeam,
+          level: lvl.index,
+          name: lvl.name,
+          value: lvl.value,
+          forfeitValue: forfeitValueOnRun(betting, rules)
+        };
+        observer?.onRaiseProposed?.(proposal);
+        const responderSeat = firstOpponentAfter(
+          proposer,
+          proposingTeam,
+          teamOfSeat
+        );
+        const canCounter = lvl.index < rules.bettingLevels.length - 1;
+        const response = await players[responderSeat].respondToRaise(
+          buildView(responderSeat, currentVazaPlays),
+          proposal,
+          canCounter
+        );
+        observer?.onRaiseResponse?.({ responder: responderSeat, response });
+        if (response === "run") {
+          return { winner: proposingTeam, points: proposal.forfeitValue };
+        }
+        betting = acceptRaise(betting, proposingTeam, rules);
+        if (response === "accept" || isMaxed(betting, rules) || !canCounter) {
+          return null;
+        }
+        proposer = responderSeat;
+      }
+    };
+    for (let v = 0; v < rules.cardsPerPlayer; v++) {
+      const plays = [];
+      for (let k = 0; k < n; k++) {
+        const seat = (leader + k) % n;
+        const team = teamOfSeat[seat];
+        for (; ; ) {
+          const allowRaise = !noTruco && canPropose(betting, team, rules);
+          const action = await players[seat].chooseAction(
+            buildView(seat, plays),
+            allowRaise
+          );
+          if (action.type === "raise") {
+            if (!allowRaise) {
+              continue;
+            }
+            const outcome = await negotiate(seat, plays);
+            if (outcome) {
+              const result2 = {
+                winningTeam: outcome.winner,
+                points: outcome.points,
+                reason: "run"
+              };
+              observer?.onHandEnd?.(result2);
+              return result2;
+            }
+            continue;
+          }
+          const hand = hands[seat];
+          const idx = hand.findIndex((c) => cardsEqual(c, action.card));
+          if (idx < 0) {
+            throw new Error(
+              `Jogador ${seat} tentou jogar carta que nao possui.`
+            );
+          }
+          hand.splice(idx, 1);
+          plays.push({ seat, card: action.card });
+          observer?.onPlay?.({ seat, card: action.card, vazaIndex: v });
+          break;
+        }
+      }
+      const result = resolveVaza(plays, vira, teamOfSeat, rules);
+      vazaResults.push(result);
+      allVazaPlays.push(plays);
+      observer?.onVazaResolved?.({ vazaIndex: v, result, plays });
+      const decision = decideHand(vazaResults, rules);
+      if (decision === "cancel") {
+        const handResult = {
+          winningTeam: null,
+          points: 0,
+          reason: "cancelled"
+        };
+        observer?.onHandEnd?.(handResult);
+        return handResult;
+      }
+      if (decision !== "continue") {
+        const handResult = {
+          winningTeam: decision,
+          points: valueNow(),
+          reason: "vazas"
+        };
+        observer?.onHandEnd?.(handResult);
+        return handResult;
+      }
+      if (result.winningSeat !== null) leader = result.winningSeat;
+    }
+    const fallback = {
+      winningTeam: null,
+      points: 0,
+      reason: "cancelled"
+    };
+    observer?.onHandEnd?.(fallback);
+    return fallback;
+  }
+
+  // src/core/match.ts
+  function assignTeams(rules) {
+    return Array.from(
+      { length: rules.numPlayers },
+      (_, seat) => seat % rules.numTeams
+    );
+  }
+  async function playMatch(cfg) {
+    const { rules, players, observer } = cfg;
+    if (players.length !== rules.numPlayers) {
+      throw new Error(
+        `Esperados ${rules.numPlayers} jogadores, recebidos ${players.length}.`
+      );
+    }
+    const teamOfSeat = assignTeams(rules);
+    const scores = new Array(rules.numTeams).fill(0);
+    if (cfg.initialScores) {
+      for (let t = 0; t < rules.numTeams; t++) {
+        scores[t] = cfg.initialScores[t] ?? 0;
+      }
+    }
+    let firstSeat = cfg.startSeat ?? 0;
+    let handsPlayed = 0;
+    observer?.onMatchStart?.({ teamOfSeat });
+    while (Math.max(...scores) < rules.pointsToWin) {
+      handsPlayed++;
+      observer?.onHandStart?.({ handNumber: handsPlayed, firstSeat });
+      const result = await playHand({
+        rules,
+        players,
+        teamOfSeat,
+        scores,
+        firstSeat,
+        rng: cfg.rng,
+        observer
+      });
+      if (result.winningTeam !== null) {
+        scores[result.winningTeam] += result.points;
+      }
+      observer?.onScoreUpdate?.({ result, scores });
+      firstSeat = (firstSeat + 1) % rules.numPlayers;
+    }
+    let winningTeam = 0;
+    for (let t = 1; t < scores.length; t++) {
+      if (scores[t] > scores[winningTeam]) winningTeam = t;
+    }
+    observer?.onMatchEnd?.({ winningTeam, scores });
+    return { winningTeam, scores, handsPlayed };
+  }
+
+  // src/core/rules.ts
+  var TRUCO_PAULISTA = {
+    name: "Truco Paulista",
+    numPlayers: 4,
+    numTeams: 2,
+    cardsPerPlayer: 3,
+    pointsToWin: 12,
+    rankOrder: [
+      "4" /* Quatro */,
+      "5" /* Cinco */,
+      "6" /* Seis */,
+      "7" /* Sete */,
+      "Q" /* Dama */,
+      "J" /* Valete */,
+      "K" /* Rei */,
+      "A" /* As */,
+      "2" /* Dois */,
+      "3" /* Tres */
+    ],
+    manilhaSuitOrder: ["ouros" /* Ouros */, "espadas" /* Espadas */, "copas" /* Copas */, "paus" /* Paus */],
+    baseValue: 1,
+    bettingLevels: [
+      { name: "Truco", value: 3 },
+      { name: "Seis", value: 6 },
+      { name: "Nove", value: 9 },
+      { name: "Doze", value: 12 }
+    ],
+    cancelOnFullTie: true,
+    maoDeOnze: true,
+    maoDeOnzeValue: 3
+  };
+
+  // src/players/bot.ts
+  function maxStrength(view) {
+    return view.rules.rankOrder.length + view.rules.manilhaSuitOrder.length - 1;
+  }
+  function handScore(view) {
+    if (view.hand.length === 0) return 0;
+    const max = maxStrength(view);
+    let sum = 0;
+    for (const c of view.hand) sum += cardStrength(c, view.vira, view.rules);
+    return sum / (max * view.hand.length);
+  }
+  function currentBest(view) {
+    let best = null;
+    for (const p of view.currentVazaPlays) {
+      if (best === null || compareCards(p.card, best, view.vira, view.rules) > 0) {
+        best = p.card;
+      }
+    }
+    return best;
+  }
+  function cardsScore(cards, view) {
+    if (cards.length === 0) return 0;
+    const max = maxStrength(view);
+    let sum = 0;
+    for (const c of cards) sum += cardStrength(c, view.vira, view.rules);
+    return sum / (max * cards.length);
+  }
+  function pickCard(view) {
+    if (view.blind) return view.hand[0];
+    const hand = [...view.hand].sort(
+      (a, b) => cardStrength(a, view.vira, view.rules) - cardStrength(b, view.vira, view.rules)
+    );
+    const best = currentBest(view);
+    if (best === null) {
+      return hand[hand.length - 1];
+    }
+    for (const c of hand) {
+      if (compareCards(c, best, view.vira, view.rules) > 0) return c;
+    }
+    return hand[0];
+  }
+  var BotPlayer = class {
+    constructor(name) {
+      this.name = name;
+    }
+    async chooseAction(view, canRaise) {
+      if (canRaise && handScore(view) > 0.7) {
+        return { type: "raise" };
+      }
+      return { type: "play", card: pickCard(view) };
+    }
+    async respondToRaise(view, _proposal, canCounter) {
+      const score = handScore(view);
+      if (score > 0.78 && canCounter) return "raise";
+      if (score > 0.35) return "accept";
+      return "run";
+    }
+    async decideMaoDeOnze(view, ctx) {
+      const all = [...view.hand, ...ctx.partnerHands.flat()];
+      const score = cardsScore(all, view);
+      return score > 0.45 ? "play" : "fold";
+    }
+  };
+
+  // src/cli/render.ts
+  var SUIT_SYMBOL = {
+    ["ouros" /* Ouros */]: "\u2666",
+    ["espadas" /* Espadas */]: "\u2660",
+    ["copas" /* Copas */]: "\u2665",
+    ["paus" /* Paus */]: "\u2663"
+  };
+  function fmtCard(card) {
+    return `${card.rank}${SUIT_SYMBOL[card.suit]}`;
+  }
+  function teamName(team) {
+    return `Equipe ${team + 1}`;
+  }
+
+  // src/web/browser-entry.ts
+  function seededRng(seed) {
+    let s = seed >>> 0;
+    return () => {
+      s = 1664525 * s + 1013904223 >>> 0;
+      return s / 4294967296;
+    };
+  }
+  async function simulate(options = {}) {
+    const names = options.names ?? ["Bot A1", "Bot B1", "Bot A2", "Bot B2"];
+    const out = [];
+    const line = (s = "") => out.push(s);
+    const fmtHand = (h) => h.map(fmtCard).join("  ");
+    let playSeq = 0;
+    const observer = {
+      onMatchStart({ teamOfSeat }) {
+        line("\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550");
+        line("            SIMULADOR DE TRUCO \u2014 bots vs bots");
+        line("\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550");
+        names.forEach(
+          (n, seat) => line(`   assento ${seat}: ${n}  \u2192  ${teamName(teamOfSeat[seat])}`)
+        );
+        line(`Variante: ${TRUCO_PAULISTA.name} \u2014 ate ${TRUCO_PAULISTA.pointsToWin} pontos.`);
+      },
+      onHandStart({ handNumber, firstSeat }) {
+        playSeq = 0;
+        line("");
+        line("\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500");
+        line(`MAO ${handNumber}  \u2014  comeca ${names[firstSeat]}`);
+      },
+      onDeal({ vira, manilha, hands }) {
+        line(`Vira: ${fmtCard(vira)}  \u2192  manilha desta mao: ${manilha}`);
+        hands.forEach(
+          (h, seat) => line(`   ${names[seat].padEnd(8)} ${fmtHand(h)}`)
+        );
+      },
+      onMaoDeOnze({ mode, teamAt11, value }) {
+        if (mode === "single") {
+          line(`*** MAO DE ONZE: ${teamName(teamAt11)} esta com 11 \u2014 sem truco, vale ${value}. A dupla decide jogar ou correr. ***`);
+        } else {
+          line(`*** MAO DE ONZE 11x11: jogada FECHADA (as cegas), vale ${value}, sem truco. ***`);
+        }
+      },
+      onMaoDeOnzeDecision({ team, decision }) {
+        line(`   >>> ${teamName(team)} decidiu: ${decision === "play" ? "JOGAR" : "CORRER"}.`);
+      },
+      onPlay({ seat, card }) {
+        playSeq++;
+        line(`   (${playSeq}o) ${names[seat].padEnd(8)} joga ${fmtCard(card)}`);
+      },
+      onRaiseProposed(p) {
+        line(`   >>> ${names[p.proposer]} PEDE ${p.name.toUpperCase()} (vale ${p.value}; se correrem, leva ${p.forfeitValue})`);
+      },
+      onRaiseResponse({ responder, response }) {
+        const label = response === "accept" ? "ACEITA" : response === "run" ? "CORRE" : "AUMENTA";
+        line(`   <<< ${names[responder]} ${label}`);
+      },
+      onVazaResolved({ vazaIndex, result }) {
+        const who = result.winningTeam === null ? "EMPATE" : teamName(result.winningTeam);
+        line(`   = Vaza ${vazaIndex + 1}: ${who}`);
+        playSeq = 0;
+      },
+      onScoreUpdate({ result, scores }) {
+        const motivo = result.reason === "fold" ? "adversario correu (mao de onze)" : result.reason === "run" ? "adversario correu o truco" : result.reason === "cancelled" ? "mao anulada" : "venceu as vazas";
+        const ganho = result.winningTeam === null ? "ninguem pontua" : `${teamName(result.winningTeam)} +${result.points}`;
+        line(`>> ${ganho} (${motivo}).`);
+        line(`   PLACAR: ${scores.map((s, t) => `${teamName(t)} ${s}`).join("   |   ")}`);
+      },
+      onMatchEnd({ winningTeam, scores }) {
+        line("");
+        line("\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588");
+        line(`  ${teamName(winningTeam)} VENCEU A PARTIDA  (${scores.map((s, t) => `${teamName(t)} ${s}`).join("  |  ")})`);
+        line("\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588");
+      }
+    };
+    const players = names.map((n) => new BotPlayer(n));
+    await playMatch({
+      rules: TRUCO_PAULISTA,
+      players,
+      observer,
+      rng: options.seed === void 0 ? void 0 : seededRng(options.seed),
+      initialScores: options.initialScores
+    });
+    return out;
+  }
+  return __toCommonJS(browser_entry_exports);
+})();

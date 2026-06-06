@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Simulador de Truco — bots vs bots</title>
+<style>
+  :root {
+    --bg: #0c0c0c;
+    --fg: #d6d6d6;
+    --accent: #7ee787;
+    --dim: #6a6a6a;
+    --bar: #161616;
+    --border: #2a2a2a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #000;
+    color: var(--fg);
+    font-family: "Cascadia Code", "Consolas", "Menlo", "DejaVu Sans Mono", monospace;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  header {
+    background: var(--bar);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 14px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+  header h1 {
+    font-size: 14px;
+    margin: 0 12px 0 0;
+    color: var(--accent);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .control { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }
+  button, select, input {
+    font-family: inherit;
+    font-size: 12px;
+    background: #1e1e1e;
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 5px 9px;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  input[type="number"] { width: 80px; cursor: text; }
+  label.check { cursor: pointer; user-select: none; }
+  #terminal {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 18px;
+    white-space: pre-wrap;
+    font-size: 13px;
+    line-height: 1.45;
+    background: var(--bg);
+  }
+  /* realces de texto */
+  .l-head { color: var(--accent); }
+  .l-mao { color: #e3b341; font-weight: 600; }     /* MAO N */
+  .l-deal { color: #58a6ff; }                       /* vira/cartas */
+  .l-truco { color: #ff7b72; font-weight: 600; }    /* truco/aumentos */
+  .l-onze { color: #d2a8ff; font-weight: 600; }     /* mao de onze */
+  .l-vaza { color: var(--dim); }
+  .l-score { color: var(--accent); }
+  .l-win { color: #e3b341; font-weight: 700; }
+  .cursor { color: var(--accent); animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  footer { background: var(--bar); border-top: 1px solid var(--border); padding: 6px 14px; font-size: 11px; color: var(--dim); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>truco · bots vs bots</h1>
+    <button id="run">▶ Nova simulação</button>
+    <button id="skip" disabled>⏭ Mostrar tudo</button>
+    <div class="control">
+      velocidade
+      <select id="speed">
+        <option value="80">lenta</option>
+        <option value="30" selected>normal</option>
+        <option value="8">rápida</option>
+        <option value="0">instantânea</option>
+      </select>
+    </div>
+    <div class="control">
+      <label class="check"><input type="checkbox" id="onze" /> começar 9×9 (chega na mão de onze)</label>
+    </div>
+    <div class="control">
+      semente <input type="number" id="seed" placeholder="aleatória" />
+    </div>
+  </header>
+
+  <div id="terminal"><span class="l-head">Clique em “▶ Nova simulação” para assistir a uma partida entre bots.</span></div>
+
+  <footer>Texto puro estilo terminal · mesmo motor de regras da CLI · Truco Paulista até 12, com mão de onze.</footer>
+
+  <script src="truco.bundle.js"></script>
+  <script>
+    const term = document.getElementById("terminal");
+    const runBtn = document.getElementById("run");
+    const skipBtn = document.getElementById("skip");
+    const speedSel = document.getElementById("speed");
+    const onzeChk = document.getElementById("onze");
+    const seedInp = document.getElementById("seed");
+
+    let timer = null;
+
+    // Classifica uma linha para colorir conforme o conteudo.
+    function classOf(line) {
+      if (line.startsWith("MAO ")) return "l-mao";
+      if (line.includes("VENCEU")) return "l-win";
+      if (line.includes("MAO DE ONZE") || line.includes("decidiu:")) return "l-onze";
+      if (line.includes("PEDE") || line.includes("ACEITA") || line.includes("CORRE") || line.includes("AUMENTA")) return "l-truco";
+      if (line.startsWith("Vira:") || /^\s+\w+.*joga/.test(line) || /assento \d/.test(line)) return "l-deal";
+      if (line.includes("PLACAR") || line.startsWith(">>")) return "l-score";
+      if (line.trimStart().startsWith("= Vaza")) return "l-vaza";
+      if (line.includes("SIMULADOR DE TRUCO") || line.includes("Variante:")) return "l-head";
+      return "";
+    }
+
+    function append(line) {
+      const span = document.createElement("span");
+      const cls = classOf(line);
+      if (cls) span.className = cls;
+      span.textContent = line + "\n";
+      term.appendChild(span);
+      term.scrollTop = term.scrollHeight;
+    }
+
+    function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
+
+    async function run() {
+      stopTimer();
+      term.textContent = "";
+      runBtn.disabled = true;
+      skipBtn.disabled = false;
+
+      const opts = {};
+      const seed = seedInp.value.trim();
+      if (seed !== "") opts.seed = Number(seed);
+      if (onzeChk.checked) opts.initialScores = [9, 9];
+
+      let lines;
+      try {
+        lines = await Truco.simulate(opts);
+      } catch (e) {
+        append("Erro ao simular: " + (e && e.message ? e.message : e));
+        runBtn.disabled = false; skipBtn.disabled = true;
+        return;
+      }
+
+      const delay = Number(speedSel.value);
+      if (delay === 0) {
+        lines.forEach(append);
+        finish();
+        return;
+      }
+      let i = 0;
+      timer = setInterval(() => {
+        if (i >= lines.length) { finish(); return; }
+        append(lines[i++]);
+      }, delay);
+
+      // guarda para o "mostrar tudo"
+      skipBtn.onclick = () => {
+        stopTimer();
+        while (i < lines.length) append(lines[i++]);
+        finish();
+      };
+    }
+
+    function finish() {
+      stopTimer();
+      runBtn.disabled = false;
+      skipBtn.disabled = true;
+    }
+
+    runBtn.onclick = run;
+
+    if (!window.Truco) {
+      term.textContent = "";
+      append("Nao foi possivel carregar truco.bundle.js.");
+      append("Gere o bundle com: npm run build:web");
+    }
+  </script>
+</body>
+</html>

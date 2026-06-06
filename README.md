@@ -37,6 +37,21 @@ npm run demo:onze     # demonstra a mão de onze (11x9 e 11x11)
 npm test           # bateria de testes (regras, vazas, apostas, mão de onze...)
 ```
 
+### Versão HTML (assistir bots no navegador)
+
+Página estilo terminal (só texto) que roda uma simulação entre bots usando o
+mesmo motor de regras. Tem controles de velocidade, semente e a opção de
+começar 9×9 (para chegar logo na mão de onze).
+
+```bash
+npm run build:web   # gera web/truco.bundle.js (esbuild)
+```
+
+Depois é só **abrir `web/index.html`** no navegador (duplo clique / `file://`,
+não precisa de servidor). O bundle já vem versionado, então a página funciona
+mesmo sem rodar o build.
+```
+
 > Observação: `npm start` precisa de um **terminal real**. Rodar com a entrada
 > redirecionada (pipe) não funciona bem por causa de uma limitação do readline
 > do Node com EOF. Para ver uma partida sem interação, use `npm run demo`.
@@ -63,7 +78,12 @@ src/
     render.ts    # formatação para o terminal
     main.ts      # ponto de entrada interativo
     demo.ts      # partida automática (bots)
+  web/
+    browser-entry.ts  # simula uma partida e devolve o transcript (texto)
   index.ts       # exporta o core para reuso (ex.: web)
+web/
+  index.html         # página estilo terminal (assistir bots)
+  truco.bundle.js    # bundle do motor para o navegador (gerado por build:web)
 ```
 
 ## Próximos passos (fora do MVP)
