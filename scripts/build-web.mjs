@@ -16,7 +16,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 // 1) Bundle (IIFE) expondo o global `Truco`.
 const result = await esbuild.build({
-  entryPoints: [resolve(root, "src/web/browser-entry.ts")],
+  entryPoints: [resolve(root, "src/web/index.ts")],
   bundle: true,
   format: "iife",
   globalName: "Truco",

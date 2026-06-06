@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
 <meta http-equiv="Pragma" content="no-cache" />
 <meta http-equiv="Expires" content="0" />
-<title>Simulador de Truco — bots vs bots</title>
+<title>Truco — assistir ou jogar</title>
 <style>
   :root {
     --bg: #0c0c0c;
@@ -15,6 +15,8 @@
     --dim: #6a6a6a;
     --bar: #161616;
     --border: #2a2a2a;
+    --felt: #0f5132;
+    --felt2: #0a3d26;
   }
   * { box-sizing: border-box; }
   body {
@@ -43,6 +45,7 @@
     white-space: nowrap;
   }
   .control { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }
+  .group { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   button, select, input {
     font-family: inherit;
     font-size: 12px;
@@ -57,6 +60,10 @@
   button:disabled { opacity: 0.5; cursor: default; }
   input[type="number"] { width: 80px; cursor: text; }
   label.check { cursor: pointer; user-select: none; }
+  .hidden { display: none !important; }
+
+  /* ----- área principal ----- */
+  main { flex: 1; position: relative; overflow: hidden; display: flex; }
   #terminal {
     flex: 1;
     overflow-y: auto;
@@ -68,67 +75,210 @@
   }
   /* realces de texto */
   .l-head { color: var(--accent); }
-  .l-mao { color: #e3b341; font-weight: 600; }     /* MAO N */
-  .l-deal { color: #58a6ff; }                       /* vira/cartas */
-  .l-truco { color: #ff7b72; font-weight: 600; }    /* truco/aumentos */
-  .l-onze { color: #d2a8ff; font-weight: 600; }     /* mao de onze */
+  .l-mao { color: #e3b341; font-weight: 600; }
+  .l-deal { color: #58a6ff; }
+  .l-truco { color: #ff7b72; font-weight: 600; }
+  .l-onze { color: #d2a8ff; font-weight: 600; }
   .l-vaza { color: var(--dim); }
   .l-score { color: var(--accent); }
   .l-win { color: #e3b341; font-weight: 700; }
   .l-explain { color: #8b949e; font-style: italic; }
-  .cursor { color: var(--accent); animation: blink 1s steps(1) infinite; }
-  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ----- mesa gráfica ----- */
+  #table {
+    flex: 1;
+    background: radial-gradient(circle at 50% 45%, var(--felt) 0%, var(--felt2) 70%, #06281a 100%);
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: 6px;
+    padding: 12px 16px;
+    overflow: hidden;
+  }
+  .table-scorebar {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px; color: #d8f3e3;
+    background: rgba(0,0,0,0.28); border-radius: 6px; padding: 6px 12px;
+  }
+  .table-scorebar b { color: #fff; }
+  .table-mid { display: grid; grid-template-columns: 90px 1fr 90px; align-items: center; gap: 8px; }
+  .seat { text-align: center; color: #cdebd9; font-size: 12px; }
+  .seat .seat-name { margin-bottom: 4px; opacity: 0.9; }
+  .seat-cards { display: flex; gap: 3px; justify-content: center; flex-wrap: wrap; }
+  .seat-top { grid-column: 1 / -1; }
+  .center {
+    min-height: 120px; align-self: stretch;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  }
+  .played-row { display: flex; gap: 14px; align-items: flex-end; justify-content: center; flex-wrap: wrap; }
+  .played { text-align: center; }
+  .played .pl-name { font-size: 10px; color: #bfe6cf; margin-bottom: 3px; }
+  .center .vaza-result { font-size: 12px; color: #e3b341; font-weight: 600; min-height: 16px; }
+  .center .vira-info { font-size: 11px; color: #bfe6cf; }
+  .your-area { text-align: center; }
+  .your-area .you-name { font-size: 12px; color: #d8f3e3; margin-bottom: 6px; }
+
+  /* ----- cartas ----- */
+  .card {
+    display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+    width: 46px; height: 64px; border-radius: 6px;
+    background: #f7f7f2; color: #1a1a1a; border: 1px solid #d0d0c8;
+    font-family: "Cascadia Code", monospace; font-weight: 700; line-height: 1; padding: 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+  }
+  .card .rank { font-size: 18px; }
+  .card .suit { font-size: 16px; margin-top: 2px; }
+  .card.red { color: #c0392b; }
+  .card.small { width: 36px; height: 50px; }
+  .card.small .rank { font-size: 14px; }
+  .card.small .suit { font-size: 12px; }
+  .card.back {
+    background: repeating-linear-gradient(45deg, #244, #244 5px, #1b3535 5px, #1b3535 10px);
+    color: #6fd0b0; border-color: #1b3535;
+  }
+  .card.clickable { cursor: pointer; transition: transform 0.08s, border-color 0.08s; }
+  .card.clickable:hover { transform: translateY(-6px); border-color: var(--accent); }
+  .hand-row { display: flex; gap: 8px; justify-content: center; }
+
+  /* ----- barra de interação (prompt) ----- */
+  #prompt {
+    background: var(--bar); border-top: 1px solid var(--border);
+    padding: 8px 14px; display: flex; flex-direction: column; gap: 8px;
+  }
+  #prompt-msg { font-size: 13px; color: var(--accent); min-height: 18px; }
+  #prompt-cards { display: flex; gap: 8px; flex-wrap: wrap; }
+  #prompt-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  #prompt-actions button { padding: 7px 14px; font-weight: 600; }
+  .btn-truco { border-color: #ff7b72 !important; color: #ff7b72 !important; }
+  .btn-accept { border-color: var(--accent) !important; color: var(--accent) !important; }
+  .btn-run { border-color: #e3b341 !important; color: #e3b341 !important; }
+
   footer { background: var(--bar); border-top: 1px solid var(--border); padding: 6px 14px; font-size: 11px; color: var(--dim); }
 </style>
 </head>
 <body>
   <header>
-    <h1>truco · bots vs bots</h1>
-    <button id="run">▶ Nova simulação</button>
-    <button id="skip" disabled>⏭ Mostrar tudo</button>
+    <h1>truco</h1>
     <div class="control">
-      velocidade
-      <select id="speed">
-        <option value="80">lenta</option>
-        <option value="30" selected>normal</option>
-        <option value="8">rápida</option>
-        <option value="0">instantânea</option>
+      modo
+      <select id="mode">
+        <option value="watch" selected>Assistir (bot vs bot)</option>
+        <option value="play">Jogar (você na mesa)</option>
       </select>
     </div>
-    <div class="control">
-      Equipe 1
-      <select id="botA">
-        <option value="melhorada_5" selected>Melhorada 5</option>
-        <option value="melhorada_4">Melhorada 4</option>
-        <option value="melhorada_3">Melhorada 3</option>
-        <option value="melhorada_2">Melhorada 2</option>
-        <option value="melhorada_1">Melhorada 1</option>
-        <option value="inocente">Inocente</option>
-      </select>
-      ×&nbsp;Equipe 2
-      <select id="botB">
-        <option value="inocente" selected>Inocente</option>
-        <option value="melhorada_1">Melhorada 1</option>
-        <option value="melhorada_2">Melhorada 2</option>
-        <option value="melhorada_3">Melhorada 3</option>
-        <option value="melhorada_4">Melhorada 4</option>
-        <option value="melhorada_5">Melhorada 5</option>
-      </select>
+
+    <!-- ===== controles do modo ASSISTIR ===== -->
+    <div class="group" id="watch-controls">
+      <button id="run">▶ Nova simulação</button>
+      <button id="skip" disabled>⏭ Mostrar tudo</button>
+      <div class="control">
+        velocidade
+        <select id="speed">
+          <option value="80">lenta</option>
+          <option value="30" selected>normal</option>
+          <option value="8">rápida</option>
+          <option value="0">instantânea</option>
+        </select>
+      </div>
+      <div class="control">
+        Equipe 1
+        <select id="botA">
+          <option value="melhorada_5" selected>Melhorada 5</option>
+          <option value="melhorada_4">Melhorada 4</option>
+          <option value="melhorada_3">Melhorada 3</option>
+          <option value="melhorada_2">Melhorada 2</option>
+          <option value="melhorada_1">Melhorada 1</option>
+          <option value="inocente">Inocente</option>
+        </select>
+        ×&nbsp;Equipe 2
+        <select id="botB">
+          <option value="inocente" selected>Inocente</option>
+          <option value="melhorada_1">Melhorada 1</option>
+          <option value="melhorada_2">Melhorada 2</option>
+          <option value="melhorada_3">Melhorada 3</option>
+          <option value="melhorada_4">Melhorada 4</option>
+          <option value="melhorada_5">Melhorada 5</option>
+        </select>
+      </div>
+      <div class="control">
+        <label class="check"><input type="checkbox" id="onze" /> começar 9×9</label>
+      </div>
+      <div class="control">
+        <label class="check"><input type="checkbox" id="explain" /> explicar jogadas</label>
+      </div>
+      <div class="control">
+        semente <input type="number" id="seed" placeholder="aleatória" />
+      </div>
     </div>
-    <div class="control">
-      <label class="check"><input type="checkbox" id="onze" /> começar 9×9 (chega na mão de onze)</label>
-    </div>
-    <div class="control">
-      <label class="check"><input type="checkbox" id="explain" /> explicar jogadas da Melhorada</label>
-    </div>
-    <div class="control">
-      semente <input type="number" id="seed" placeholder="aleatória" />
+
+    <!-- ===== controles do modo JOGAR ===== -->
+    <div class="group hidden" id="play-controls">
+      <button id="play">▶ Jogar</button>
+      <div class="control">
+        estilo
+        <select id="style">
+          <option value="table" selected>Mesa gráfica</option>
+          <option value="terminal">Terminal</option>
+        </select>
+      </div>
+      <div class="control">
+        seu parceiro
+        <select id="partner">
+          <option value="melhorada_5" selected>Melhorada 5</option>
+          <option value="melhorada_4">Melhorada 4</option>
+          <option value="melhorada_3">Melhorada 3</option>
+          <option value="melhorada_2">Melhorada 2</option>
+          <option value="melhorada_1">Melhorada 1</option>
+          <option value="inocente">Inocente</option>
+        </select>
+      </div>
+      <div class="control">
+        adversários
+        <select id="opp1">
+          <option value="melhorada_5">Melhorada 5</option>
+          <option value="melhorada_4">Melhorada 4</option>
+          <option value="melhorada_3" selected>Melhorada 3</option>
+          <option value="melhorada_2">Melhorada 2</option>
+          <option value="melhorada_1">Melhorada 1</option>
+          <option value="inocente">Inocente</option>
+        </select>
+        <select id="opp2">
+          <option value="melhorada_5">Melhorada 5</option>
+          <option value="melhorada_4">Melhorada 4</option>
+          <option value="melhorada_3">Melhorada 3</option>
+          <option value="melhorada_2" selected>Melhorada 2</option>
+          <option value="melhorada_1">Melhorada 1</option>
+          <option value="inocente">Inocente</option>
+        </select>
+      </div>
+      <div class="control">
+        ritmo
+        <select id="playSpeed">
+          <option value="900">lento</option>
+          <option value="550" selected>normal</option>
+          <option value="200">rápido</option>
+        </select>
+      </div>
+      <div class="control">
+        <label class="check"><input type="checkbox" id="playOnze" /> começar 9×9</label>
+      </div>
+      <div class="control">
+        semente <input type="number" id="playSeed" placeholder="aleatória" />
+      </div>
     </div>
   </header>
 
-  <div id="terminal"><span class="l-head">Clique em “▶ Nova simulação” para assistir a uma partida entre bots.</span></div>
+  <main>
+    <div id="terminal"><span class="l-head">Escolha o modo no topo: “Assistir” para ver bots, ou “Jogar” para entrar na mesa.</span></div>
+    <div id="table" class="hidden"></div>
+  </main>
 
-  <footer>Texto puro estilo terminal · mesmo motor de regras da CLI · Truco Paulista até 12, com mão de onze.</footer>
+  <div id="prompt" class="hidden">
+    <div id="prompt-msg"></div>
+    <div id="prompt-cards"></div>
+    <div id="prompt-actions"></div>
+  </div>
+
+  <footer>Mesmo motor de regras da CLI · Truco Paulista até 12, com mão de onze · assista bots ou jogue com um parceiro à sua escolha.</footer>
 
   <script>
 "use strict";
@@ -151,10 +301,14 @@ var Truco = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // src/web/browser-entry.ts
-  var browser_entry_exports = {};
-  __export(browser_entry_exports, {
-    simulate: () => simulate
+  // src/web/index.ts
+  var index_exports = {};
+  __export(index_exports, {
+    HUMAN_SEAT: () => HUMAN_SEAT,
+    fmtCard: () => fmtCard,
+    playInteractive: () => playInteractive,
+    simulate: () => simulate,
+    teamName: () => teamName
   });
 
   // src/core/betting.ts
@@ -1719,12 +1873,139 @@ var Truco = (() => {
     });
     return out;
   }
-  return __toCommonJS(browser_entry_exports);
+
+  // src/players/humanWeb.ts
+  var HumanWebPlayer = class {
+    constructor(name, hooks) {
+      this.name = name;
+      this.hooks = hooks;
+    }
+    chooseAction(view, canRaise) {
+      return new Promise(
+        (resolve) => this.hooks.onActionPrompt({ view, canRaise, resolve })
+      );
+    }
+    respondToRaise(view, proposal, canCounter) {
+      return new Promise(
+        (resolve) => this.hooks.onRaisePrompt({ view, proposal, canCounter, resolve })
+      );
+    }
+    decideMaoDeOnze(view, ctx) {
+      return new Promise(
+        (resolve) => this.hooks.onMaoOnzePrompt({ view, ctx, resolve })
+      );
+    }
+  };
+
+  // src/web/play-entry.ts
+  var HUMAN_SEAT = 0;
+  function seededRng2(seed) {
+    let s = seed >>> 0;
+    return () => {
+      s = 1664525 * s + 1013904223 >>> 0;
+      return s / 4294967296;
+    };
+  }
+  function withDelay(inner, ms) {
+    const wait = () => new Promise((r) => setTimeout(r, ms));
+    return {
+      name: inner.name,
+      async chooseAction(view, canRaise) {
+        await wait();
+        return inner.chooseAction(view, canRaise);
+      },
+      async respondToRaise(view, proposal, canCounter) {
+        await wait();
+        return inner.respondToRaise(view, proposal, canCounter);
+      },
+      async decideMaoDeOnze(view, ctx) {
+        await wait();
+        return inner.decideMaoDeOnze(view, ctx);
+      }
+    };
+  }
+  async function playInteractive(opts, ui) {
+    const human = new HumanWebPlayer(opts.humanName ?? "Voce", ui);
+    const mkRng = (offset) => opts.seed === void 0 ? void 0 : seededRng2(opts.seed * 100 + offset);
+    const delay = opts.stepDelayMs ?? 0;
+    const bot = (id, name, offset) => {
+      const b = getPersonality(id).create(name, mkRng(offset));
+      return delay > 0 ? withDelay(b, delay) : b;
+    };
+    const players = [
+      human,
+      bot(opts.opp1Bot, "Adv 1", 2),
+      bot(opts.partnerBot, "Parceiro", 3),
+      bot(opts.opp2Bot, "Adv 2", 4)
+    ];
+    const names = players.map((p) => p.name);
+    const observer = {
+      onMatchStart({ teamOfSeat }) {
+        ui.onEvent({ kind: "matchStart", teamOfSeat, names });
+      },
+      onHandStart({ handNumber, firstSeat }) {
+        ui.onEvent({ kind: "handStart", handNumber, firstSeat });
+      },
+      onDeal({ vira, manilha, hands }) {
+        ui.onEvent({
+          kind: "deal",
+          vira,
+          manilha,
+          humanHand: hands[HUMAN_SEAT] ?? [],
+          handSizes: hands.map((h) => h.length)
+        });
+      },
+      onMaoDeOnze({ mode, teamAt11, value }) {
+        ui.onEvent({ kind: "maoDeOnze", mode, teamAt11, value });
+      },
+      onMaoDeOnzeDecision({ team, decision }) {
+        ui.onEvent({ kind: "maoDeOnzeDecision", team, decision });
+      },
+      onPlay({ seat, card, vazaIndex }) {
+        ui.onEvent({ kind: "play", seat, card, vazaIndex });
+      },
+      onRaiseProposed(proposal) {
+        ui.onEvent({ kind: "raiseProposed", proposal });
+      },
+      onRaiseResponse({ responder, response }) {
+        ui.onEvent({ kind: "raiseResponse", responder, response });
+      },
+      onVazaResolved({ vazaIndex, result, plays }) {
+        ui.onEvent({ kind: "vazaResolved", vazaIndex, result, plays });
+      },
+      onScoreUpdate({ result, scores }) {
+        ui.onEvent({ kind: "score", result, scores });
+      },
+      onMatchEnd({ winningTeam, scores }) {
+        ui.onEvent({ kind: "matchEnd", winningTeam, scores });
+      }
+    };
+    return playMatch({
+      rules: TRUCO_PAULISTA,
+      players,
+      observer,
+      rng: opts.seed === void 0 ? void 0 : seededRng2(opts.seed),
+      initialScores: opts.initialScores
+    });
+  }
+  return __toCommonJS(index_exports);
 })();
 
 </script>
   <script>
+    // ===================== elementos =====================
     const term = document.getElementById("terminal");
+    const tableEl = document.getElementById("table");
+    const promptBar = document.getElementById("prompt");
+    const promptMsg = document.getElementById("prompt-msg");
+    const promptCards = document.getElementById("prompt-cards");
+    const promptActions = document.getElementById("prompt-actions");
+
+    const modeSel = document.getElementById("mode");
+    const watchControls = document.getElementById("watch-controls");
+    const playControls = document.getElementById("play-controls");
+
+    // modo assistir
     const runBtn = document.getElementById("run");
     const skipBtn = document.getElementById("skip");
     const speedSel = document.getElementById("speed");
@@ -1734,9 +2015,25 @@ var Truco = (() => {
     const botASel = document.getElementById("botA");
     const botBSel = document.getElementById("botB");
 
-    let timer = null;
+    // modo jogar
+    const playBtn = document.getElementById("play");
+    const styleSel = document.getElementById("style");
+    const partnerSel = document.getElementById("partner");
+    const opp1Sel = document.getElementById("opp1");
+    const opp2Sel = document.getElementById("opp2");
+    const playSpeedSel = document.getElementById("playSpeed");
+    const playOnzeChk = document.getElementById("playOnze");
+    const playSeedInp = document.getElementById("playSeed");
 
-    // Classifica uma linha para colorir conforme o conteudo.
+    const HUMAN_SEAT = (window.Truco && Truco.HUMAN_SEAT) || 0;
+    const SUIT = {
+      ouros:   { sym: "♦", red: true },
+      copas:   { sym: "♥", red: true },
+      espadas: { sym: "♠", red: false },
+      paus:    { sym: "♣", red: false },
+    };
+
+    // ===================== coloração do terminal =====================
     function classOf(line) {
       if (line.includes("[explica]")) return "l-explain";
       if (line.startsWith("MAO ")) return "l-mao";
@@ -1746,10 +2043,9 @@ var Truco = (() => {
       if (line.startsWith("Vira:") || /^\s+\w+.*joga/.test(line) || /assento \d/.test(line)) return "l-deal";
       if (line.includes("PLACAR") || line.startsWith(">>")) return "l-score";
       if (line.trimStart().startsWith("= Vaza")) return "l-vaza";
-      if (line.includes("SIMULADOR DE TRUCO") || line.includes("Variante:")) return "l-head";
+      if (line.includes("SIMULADOR DE TRUCO") || line.includes("Variante:") || line.includes("MESA DE TRUCO")) return "l-head";
       return "";
     }
-
     function append(line) {
       const span = document.createElement("span");
       const cls = classOf(line);
@@ -1759,8 +2055,370 @@ var Truco = (() => {
       term.scrollTop = term.scrollHeight;
     }
 
+    // ===================== modo / estilo =====================
+    let timer = null;
     function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
 
+    function applyMode() {
+      const playing = modeSel.value === "play";
+      watchControls.classList.toggle("hidden", playing);
+      playControls.classList.toggle("hidden", !playing);
+      promptBar.classList.toggle("hidden", !playing);
+      if (playing) {
+        applyStyle();
+        if (!S.started) {
+          term.textContent = "";
+          append("Escolha parceiro e adversários e clique “▶ Jogar”.");
+          tableEl.innerHTML = "";
+          promptMsg.textContent = "";
+        }
+      } else {
+        stopTimer();
+        term.classList.remove("hidden");
+        tableEl.classList.add("hidden");
+      }
+    }
+    function applyStyle() {
+      if (modeSel.value !== "play") return;
+      const graphical = styleSel.value === "table";
+      tableEl.classList.toggle("hidden", !graphical);
+      term.classList.toggle("hidden", graphical);
+      renderTable();
+      renderInteraction();
+    }
+    modeSel.onchange = applyMode;
+    styleSel.onchange = applyStyle;
+
+    // ===================== cartas =====================
+    function cardEl(card, opts) {
+      opts = opts || {};
+      const el = document.createElement(opts.onClick ? "button" : "div");
+      el.className = "card" + (opts.small ? " small" : "") + (opts.faceDown ? " back" : "") + (opts.onClick ? " clickable" : "");
+      if (opts.faceDown) {
+        el.textContent = "";
+      } else {
+        const s = SUIT[card.suit] || { sym: "?", red: false };
+        if (s.red) el.classList.add("red");
+        const r = document.createElement("span"); r.className = "rank"; r.textContent = card.rank;
+        const u = document.createElement("span"); u.className = "suit"; u.textContent = s.sym;
+        el.appendChild(r); el.appendChild(u);
+      }
+      if (opts.onClick) el.onclick = opts.onClick;
+      return el;
+    }
+
+    // ===================== estado da partida =====================
+    const S = {
+      started: false,
+      gameOver: false,
+      names: ["Você", "Adv 1", "Parceiro", "Adv 2"],
+      teamOfSeat: [0, 1, 0, 1],
+      scores: [0, 0],
+      vira: null,
+      manilha: "",
+      handValue: 1,
+      handSizes: [0, 0, 0, 0],
+      hand: [],          // mão atual do humano (Card[])
+      curVaza: -1,
+      currentPlays: [],  // {seat, card}[] da vaza em andamento
+      lastVazaResult: "",
+      pending: null,     // { kind:'action'|'raise'|'onze', p, handled }
+    };
+    function resetMatchState() {
+      S.scores = [0, 0]; S.vira = null; S.manilha = ""; S.handValue = 1;
+      S.handSizes = [0, 0, 0, 0]; S.hand = []; S.curVaza = -1;
+      S.currentPlays = []; S.lastVazaResult = ""; S.pending = null; S.gameOver = false;
+    }
+
+    function teamOf(seat) { return S.teamOfSeat[seat]; }
+    function myTeam() { return teamOf(HUMAN_SEAT); }
+
+    // ===================== eventos ao vivo =====================
+    function handleEvent(ev) {
+      switch (ev.kind) {
+        case "matchStart":
+          S.names = ev.names.slice(); S.teamOfSeat = ev.teamOfSeat.slice();
+          append("════════════════════════════════════════════════════");
+          append("                 MESA DE TRUCO");
+          append("════════════════════════════════════════════════════");
+          S.names.forEach((n, seat) =>
+            append(`   assento ${seat}: ${n}  →  ${Truco.teamName(S.teamOfSeat[seat])}`));
+          break;
+        case "handStart":
+          S.currentPlays = []; S.lastVazaResult = ""; S.curVaza = -1; S.handValue = 1;
+          append("");
+          append(`MAO ${ev.handNumber}  —  começa ${S.names[ev.firstSeat]}`);
+          break;
+        case "deal":
+          S.vira = ev.vira; S.manilha = ev.manilha;
+          S.hand = ev.humanHand.slice(); S.handSizes = ev.handSizes.slice();
+          S.currentPlays = []; S.lastVazaResult = ""; S.curVaza = -1;
+          append(`Vira: ${Truco.fmtCard(ev.vira)}  →  manilha desta mão: ${ev.manilha}`);
+          append(`Suas cartas: ${S.hand.map(Truco.fmtCard).join("  ")}`);
+          break;
+        case "maoDeOnze":
+          if (ev.mode === "single")
+            append(`*** MAO DE ONZE: ${Truco.teamName(ev.teamAt11)} está com 11 — vale ${ev.value}. A dupla decide jogar ou correr. ***`);
+          else
+            append(`*** MAO DE ONZE 11x11: jogada FECHADA (às cegas), vale ${ev.value}, sem truco. ***`);
+          break;
+        case "maoDeOnzeDecision":
+          append(`   >>> ${Truco.teamName(ev.team)} decidiu: ${ev.decision === "play" ? "JOGAR" : "CORRER"}.`);
+          break;
+        case "play":
+          if (ev.vazaIndex !== S.curVaza) { S.curVaza = ev.vazaIndex; S.currentPlays = []; S.lastVazaResult = ""; }
+          S.currentPlays.push({ seat: ev.seat, card: ev.card });
+          if (S.handSizes[ev.seat] > 0) S.handSizes[ev.seat]--;
+          if (ev.seat === HUMAN_SEAT) {
+            const i = S.hand.findIndex((c) => c.rank === ev.card.rank && c.suit === ev.card.suit);
+            if (i >= 0) S.hand.splice(i, 1);
+          }
+          append(`   (${S.currentPlays.length}º) ${S.names[ev.seat]} joga ${Truco.fmtCard(ev.card)}`);
+          break;
+        case "raiseProposed":
+          S.handValue = ev.proposal.value;
+          append(`   >>> ${S.names[ev.proposal.proposer]} PEDE ${ev.proposal.name.toUpperCase()} (vale ${ev.proposal.value}; se correrem, leva ${ev.proposal.forfeitValue})`);
+          break;
+        case "raiseResponse": {
+          const lbl = ev.response === "accept" ? "ACEITA" : ev.response === "run" ? "CORRE" : "AUMENTA";
+          append(`   <<< ${S.names[ev.responder]} ${lbl}`);
+          break;
+        }
+        case "vazaResolved": {
+          const who = ev.result.winningTeam === null ? "EMPATE" : Truco.teamName(ev.result.winningTeam);
+          S.lastVazaResult = `Vaza ${ev.vazaIndex + 1}: ${who}`;
+          append(`   = ${S.lastVazaResult}`);
+          break;
+        }
+        case "score": {
+          S.scores = ev.scores.slice();
+          const motivo = ev.result.reason === "fold" ? "adversário correu (mão de onze)"
+            : ev.result.reason === "run" ? "adversário correu o truco"
+            : ev.result.reason === "cancelled" ? "mão anulada" : "venceu as vazas";
+          const ganho = ev.result.winningTeam === null ? "ninguém pontua"
+            : `${Truco.teamName(ev.result.winningTeam)} +${ev.result.points}`;
+          append(`>> ${ganho} (${motivo}).`);
+          append(`   PLACAR: ${ev.scores.map((s, t) => `${Truco.teamName(t)} ${s}`).join("   |   ")}`);
+          break;
+        }
+        case "matchEnd":
+          S.gameOver = true; S.scores = ev.scores.slice();
+          append("");
+          append("████████████████████████████████████████████████████");
+          append(`  ${Truco.teamName(ev.winningTeam)} VENCEU A PARTIDA  (${ev.scores.map((s, t) => `${Truco.teamName(t)} ${s}`).join("  |  ")})`);
+          append("████████████████████████████████████████████████████");
+          break;
+      }
+      renderTable();
+    }
+
+    // ===================== mesa gráfica =====================
+    function seatBox(seat, extraClass) {
+      const box = document.createElement("div");
+      box.className = "seat" + (extraClass ? " " + extraClass : "");
+      const name = document.createElement("div");
+      name.className = "seat-name";
+      name.textContent = `${S.names[seat]} (${Truco.teamName(teamOf(seat))})`;
+      const cards = document.createElement("div");
+      cards.className = "seat-cards";
+      const n = S.handSizes[seat] || 0;
+      for (let i = 0; i < n; i++) cards.appendChild(cardEl(null, { faceDown: true, small: true }));
+      box.appendChild(name); box.appendChild(cards);
+      return box;
+    }
+
+    function renderTable() {
+      if (modeSel.value !== "play" || styleSel.value !== "table") return;
+      tableEl.innerHTML = "";
+
+      // barra de placar
+      const bar = document.createElement("div");
+      bar.className = "table-scorebar";
+      const us = `${Truco.teamName(myTeam())} (você+parceiro): `;
+      const them = `${Truco.teamName(1 - myTeam())} (adversários): `;
+      bar.innerHTML =
+        `<span>${us}<b>${S.scores[myTeam()] || 0}</b></span>` +
+        `<span>valor da mão: <b>${S.handValue}</b>${S.vira ? "  ·  vira " + Truco.fmtCard(S.vira) + " (manilha " + S.manilha + ")" : ""}</span>` +
+        `<span>${them}<b>${S.scores[1 - myTeam()] || 0}</b></span>`;
+      tableEl.appendChild(bar);
+
+      // parceiro (assento 2) no topo
+      const mid = document.createElement("div");
+      mid.className = "table-mid";
+      mid.appendChild(seatBox(2, "seat-top"));
+
+      // adversário esquerda (1)
+      mid.appendChild(seatBox(1));
+
+      // centro: cartas jogadas + resultado da vaza
+      const center = document.createElement("div");
+      center.className = "center";
+      const playedRow = document.createElement("div");
+      playedRow.className = "played-row";
+      if (S.currentPlays.length === 0) {
+        const hint = document.createElement("div");
+        hint.className = "vira-info";
+        hint.textContent = S.lastVazaResult || "—";
+        playedRow.appendChild(hint);
+      } else {
+        S.currentPlays.forEach((pl) => {
+          const wrap = document.createElement("div");
+          wrap.className = "played";
+          const nm = document.createElement("div");
+          nm.className = "pl-name"; nm.textContent = S.names[pl.seat];
+          wrap.appendChild(nm);
+          wrap.appendChild(cardEl(pl.card, { small: true }));
+          playedRow.appendChild(wrap);
+        });
+      }
+      center.appendChild(playedRow);
+      const vr = document.createElement("div");
+      vr.className = "vaza-result";
+      vr.textContent = S.currentPlays.length ? S.lastVazaResult : "";
+      center.appendChild(vr);
+      mid.appendChild(center);
+
+      // adversário direita (3)
+      mid.appendChild(seatBox(3));
+      tableEl.appendChild(mid);
+
+      // sua área (assento 0) embaixo — clicável quando for sua vez de jogar carta
+      const you = document.createElement("div");
+      you.className = "your-area";
+      const yname = document.createElement("div");
+      yname.className = "you-name";
+      yname.textContent = `${S.names[HUMAN_SEAT]} (${Truco.teamName(myTeam())})`;
+      you.appendChild(yname);
+      const handRow = document.createElement("div");
+      handRow.className = "hand-row";
+      const actionable = S.pending && S.pending.kind === "action";
+      const blind = actionable && S.pending.p.view.blind;
+      S.hand.forEach((card, idx) => {
+        handRow.appendChild(cardEl(card, {
+          faceDown: blind,
+          onClick: actionable ? () => chooseCard(idx) : undefined,
+        }));
+      });
+      you.appendChild(handRow);
+      tableEl.appendChild(you);
+    }
+
+    // ===================== prompts do humano =====================
+    const ui = {
+      onEvent(ev) { handleEvent(ev); },
+      onActionPrompt(p) { S.pending = { kind: "action", p, handled: false }; S.hand = p.view.hand.slice(); S.handValue = p.view.handValue; S.scores = p.view.scores.slice(); renderTable(); renderInteraction(); },
+      onRaisePrompt(p) { S.pending = { kind: "raise", p, handled: false }; renderInteraction(); },
+      onMaoOnzePrompt(p) { S.pending = { kind: "onze", p, handled: false }; renderInteraction(); },
+    };
+
+    function resolvePending(value) {
+      const cur = S.pending;
+      if (!cur || cur.handled) return;
+      cur.handled = true;
+      S.pending = null;
+      cur.resolve_called = true;
+      // limpa controles antes de devolver à engine
+      renderInteraction();
+      renderTable();
+      cur.p.resolve(value);
+    }
+    function chooseCard(idx) {
+      if (!S.pending || S.pending.kind !== "action") return;
+      const card = S.pending.p.view.hand[idx];
+      if (!card) return;
+      resolvePending({ type: "play", card });
+    }
+
+    function mkBtn(label, cls, onClick) {
+      const b = document.createElement("button");
+      b.textContent = label; if (cls) b.className = cls; b.onclick = onClick;
+      return b;
+    }
+
+    // Renderiza a barra de interação (mensagem + cartas clicáveis no terminal + botões).
+    function renderInteraction() {
+      promptMsg.textContent = "";
+      promptCards.innerHTML = "";
+      promptActions.innerHTML = "";
+      const pend = S.pending;
+      if (!pend) {
+        if (S.started && !S.gameOver) promptMsg.textContent = "Aguardando os outros jogadores…";
+        return;
+      }
+      const graphical = styleSel.value === "table";
+
+      if (pend.kind === "action") {
+        const v = pend.p.view;
+        promptMsg.textContent = v.blind
+          ? "Mão FECHADA (11×11): escolha uma carta às cegas."
+          : "Sua vez — escolha uma carta" + (pend.p.canRaise ? " ou peça truco." : ".");
+        // No estilo terminal as cartas clicáveis ficam aqui; no gráfico, na mesa.
+        if (!graphical) {
+          v.hand.forEach((card, idx) => {
+            promptCards.appendChild(cardEl(card, { faceDown: v.blind, onClick: () => chooseCard(idx) }));
+          });
+        }
+        if (pend.p.canRaise) {
+          promptActions.appendChild(mkBtn("Pedir Truco / Aumentar", "btn-truco", () => resolvePending({ type: "raise" })));
+        }
+      } else if (pend.kind === "raise") {
+        const pr = pend.p.proposal;
+        promptMsg.textContent =
+          `${S.names[pr.proposer]} pediu ${pr.name.toUpperCase()} (vale ${pr.value}). Sua resposta:`;
+        promptActions.appendChild(mkBtn("Aceitar", "btn-accept", () => resolvePending("accept")));
+        promptActions.appendChild(mkBtn("Correr", "btn-run", () => resolvePending("run")));
+        if (pend.p.canCounter)
+          promptActions.appendChild(mkBtn("Aumentar", "btn-truco", () => resolvePending("raise")));
+      } else if (pend.kind === "onze") {
+        const ctx = pend.p.ctx;
+        promptMsg.textContent =
+          `MÃO DE ONZE — você decide pela dupla. Se JOGAR vale ${ctx.value}; se CORRER o adversário leva ${ctx.foldValue}.`;
+        // mostra suas cartas + as do parceiro (consulta em dupla)
+        const own = document.createElement("div");
+        pend.p.view.hand.forEach((c) => promptCards.appendChild(cardEl(c, { small: true })));
+        const sep = document.createElement("div"); sep.style.width = "10px"; promptCards.appendChild(sep);
+        ctx.partnerHands.forEach((h) => h.forEach((c) => promptCards.appendChild(cardEl(c, { small: true }))));
+        promptActions.appendChild(mkBtn("Jogar", "btn-accept", () => resolvePending("play")));
+        promptActions.appendChild(mkBtn("Correr", "btn-run", () => resolvePending("fold")));
+      }
+    }
+
+    // ===================== iniciar partida (jogar) =====================
+    async function startPlay() {
+      if (!window.Truco || !Truco.playInteractive) {
+        promptMsg.textContent = "Bundle não carregado. Rode: npm run build:web";
+        return;
+      }
+      resetMatchState();
+      S.started = true;
+      term.textContent = "";
+      tableEl.innerHTML = "";
+      playBtn.disabled = true;
+
+      const opts = {
+        humanName: "Você",
+        partnerBot: partnerSel.value,
+        opp1Bot: opp1Sel.value,
+        opp2Bot: opp2Sel.value,
+        stepDelayMs: Number(playSpeedSel.value),
+      };
+      const seed = playSeedInp.value.trim();
+      if (seed !== "") opts.seed = Number(seed);
+      if (playOnzeChk.checked) opts.initialScores = [9, 9];
+
+      applyStyle();
+      try {
+        await Truco.playInteractive(opts, ui);
+      } catch (e) {
+        append("Erro: " + (e && e.message ? e.message : e));
+      } finally {
+        playBtn.disabled = false;
+        renderInteraction();
+      }
+    }
+    playBtn.onclick = startPlay;
+
+    // ===================== modo assistir (inalterado) =====================
     async function run() {
       stopTimer();
       term.textContent = "";
@@ -1783,38 +2441,28 @@ var Truco = (() => {
       }
 
       const delay = Number(speedSel.value);
-      if (delay === 0) {
-        lines.forEach(append);
-        finish();
-        return;
-      }
+      if (delay === 0) { lines.forEach(append); finishWatch(); return; }
       let i = 0;
       timer = setInterval(() => {
-        if (i >= lines.length) { finish(); return; }
+        if (i >= lines.length) { finishWatch(); return; }
         append(lines[i++]);
       }, delay);
-
-      // guarda para o "mostrar tudo"
       skipBtn.onclick = () => {
         stopTimer();
         while (i < lines.length) append(lines[i++]);
-        finish();
+        finishWatch();
       };
     }
-
-    function finish() {
-      stopTimer();
-      runBtn.disabled = false;
-      skipBtn.disabled = true;
-    }
-
+    function finishWatch() { stopTimer(); runBtn.disabled = false; skipBtn.disabled = true; }
     runBtn.onclick = run;
 
+    // ===================== boot =====================
     if (!window.Truco) {
       term.textContent = "";
       append("Nao foi possivel carregar truco.bundle.js.");
       append("Gere o bundle com: npm run build:web");
     }
+    applyMode();
   </script>
 </body>
 </html>

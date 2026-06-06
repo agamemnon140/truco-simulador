@@ -18,10 +18,14 @@ var Truco = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // src/web/browser-entry.ts
-  var browser_entry_exports = {};
-  __export(browser_entry_exports, {
-    simulate: () => simulate
+  // src/web/index.ts
+  var index_exports = {};
+  __export(index_exports, {
+    HUMAN_SEAT: () => HUMAN_SEAT,
+    fmtCard: () => fmtCard,
+    playInteractive: () => playInteractive,
+    simulate: () => simulate,
+    teamName: () => teamName
   });
 
   // src/core/betting.ts
@@ -1586,5 +1590,120 @@ var Truco = (() => {
     });
     return out;
   }
-  return __toCommonJS(browser_entry_exports);
+
+  // src/players/humanWeb.ts
+  var HumanWebPlayer = class {
+    constructor(name, hooks) {
+      this.name = name;
+      this.hooks = hooks;
+    }
+    chooseAction(view, canRaise) {
+      return new Promise(
+        (resolve) => this.hooks.onActionPrompt({ view, canRaise, resolve })
+      );
+    }
+    respondToRaise(view, proposal, canCounter) {
+      return new Promise(
+        (resolve) => this.hooks.onRaisePrompt({ view, proposal, canCounter, resolve })
+      );
+    }
+    decideMaoDeOnze(view, ctx) {
+      return new Promise(
+        (resolve) => this.hooks.onMaoOnzePrompt({ view, ctx, resolve })
+      );
+    }
+  };
+
+  // src/web/play-entry.ts
+  var HUMAN_SEAT = 0;
+  function seededRng2(seed) {
+    let s = seed >>> 0;
+    return () => {
+      s = 1664525 * s + 1013904223 >>> 0;
+      return s / 4294967296;
+    };
+  }
+  function withDelay(inner, ms) {
+    const wait = () => new Promise((r) => setTimeout(r, ms));
+    return {
+      name: inner.name,
+      async chooseAction(view, canRaise) {
+        await wait();
+        return inner.chooseAction(view, canRaise);
+      },
+      async respondToRaise(view, proposal, canCounter) {
+        await wait();
+        return inner.respondToRaise(view, proposal, canCounter);
+      },
+      async decideMaoDeOnze(view, ctx) {
+        await wait();
+        return inner.decideMaoDeOnze(view, ctx);
+      }
+    };
+  }
+  async function playInteractive(opts, ui) {
+    const human = new HumanWebPlayer(opts.humanName ?? "Voce", ui);
+    const mkRng = (offset) => opts.seed === void 0 ? void 0 : seededRng2(opts.seed * 100 + offset);
+    const delay = opts.stepDelayMs ?? 0;
+    const bot = (id, name, offset) => {
+      const b = getPersonality(id).create(name, mkRng(offset));
+      return delay > 0 ? withDelay(b, delay) : b;
+    };
+    const players = [
+      human,
+      bot(opts.opp1Bot, "Adv 1", 2),
+      bot(opts.partnerBot, "Parceiro", 3),
+      bot(opts.opp2Bot, "Adv 2", 4)
+    ];
+    const names = players.map((p) => p.name);
+    const observer = {
+      onMatchStart({ teamOfSeat }) {
+        ui.onEvent({ kind: "matchStart", teamOfSeat, names });
+      },
+      onHandStart({ handNumber, firstSeat }) {
+        ui.onEvent({ kind: "handStart", handNumber, firstSeat });
+      },
+      onDeal({ vira, manilha, hands }) {
+        ui.onEvent({
+          kind: "deal",
+          vira,
+          manilha,
+          humanHand: hands[HUMAN_SEAT] ?? [],
+          handSizes: hands.map((h) => h.length)
+        });
+      },
+      onMaoDeOnze({ mode, teamAt11, value }) {
+        ui.onEvent({ kind: "maoDeOnze", mode, teamAt11, value });
+      },
+      onMaoDeOnzeDecision({ team, decision }) {
+        ui.onEvent({ kind: "maoDeOnzeDecision", team, decision });
+      },
+      onPlay({ seat, card, vazaIndex }) {
+        ui.onEvent({ kind: "play", seat, card, vazaIndex });
+      },
+      onRaiseProposed(proposal) {
+        ui.onEvent({ kind: "raiseProposed", proposal });
+      },
+      onRaiseResponse({ responder, response }) {
+        ui.onEvent({ kind: "raiseResponse", responder, response });
+      },
+      onVazaResolved({ vazaIndex, result, plays }) {
+        ui.onEvent({ kind: "vazaResolved", vazaIndex, result, plays });
+      },
+      onScoreUpdate({ result, scores }) {
+        ui.onEvent({ kind: "score", result, scores });
+      },
+      onMatchEnd({ winningTeam, scores }) {
+        ui.onEvent({ kind: "matchEnd", winningTeam, scores });
+      }
+    };
+    return playMatch({
+      rules: TRUCO_PAULISTA,
+      players,
+      observer,
+      rng: opts.seed === void 0 ? void 0 : seededRng2(opts.seed),
+      initialScores: opts.initialScores
+    });
+  }
+  return __toCommonJS(index_exports);
 })();
