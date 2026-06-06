@@ -227,18 +227,20 @@ A personalidade **`maço`** joga como a m6, mas **trapaceia na distribuição** 
 de quem dá as cartas, o "pé", que rotaciona → só ~½ das mãos da dupla):
 - **Maço**: enviesa as **manilhas** para o time, em escada **parceiro > pé >
   adversário > honesto** (best-of-K), **imperfeito** (às vezes dá *backfire* e a
-  manilha vai pro rival). Força calibrável (`macoStrength`).
+  manilha vai pro rival). Força **dinâmica**: `macoStrength` começa em **0.2** e
+  sobe para **0.8 quando o time está perdendo** (trapaceia mais quando desespera).
 - **4 cartas ao parceiro**: ele recebe 4 e fica com as **3 melhores**.
 - **Melar**: diante de uma mão fraca, **anula e redistribui** (orçamento por
   partida; o motor limita os redeals).
 
 Diferente da comunicação (m6) e da inferência (m7), que saíram **neutras**, a
-**trapaça FUNCIONA**: na força `0.6` ela soma **+6 a +12pp** sobre o m6 honesto em
-todo o pool — e mesmo contra um oponente igual (o próprio m6) vence **~58%**
-(honesto = 50%). Mas é **batível** (o rival ainda leva ~42%), como calibramos —
-porque ela muda **as cartas de verdade**, não só a política (já saturada). O
-**motor honesto fica inalterado** sem trapaceiro. (`npm run calibrate:maco` para
-escolher a força, `npm run eval:maco` para medir o efeito.)
+**trapaça FUNCIONA**: a config dinâmica (0.2→0.8) soma **+3 a +13pp** sobre o m6
+honesto em todo o pool — e mesmo contra um oponente igual (o próprio m6) vence
+**~60%** (honesto = 50%). Concentrar a trapaça em **quando se está perdendo** é
+mais eficiente (mesmo edge, menos trapaça) e segue **batível** (o rival leva
+~40%) — porque ela muda **as cartas de verdade**, não só a política (já
+saturada). O **motor honesto fica inalterado** sem trapaceiro.
+(`npm run calibrate:maco` varre a força; `npm run eval:maco` mede o efeito.)
 
 ## Equilíbrio (GTO) — resolver matematicamente (CFR)
 

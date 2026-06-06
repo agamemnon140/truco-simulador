@@ -116,6 +116,8 @@ export interface Proposal {
 export interface CheatProfile {
   /** Prob. [0,1] de o "maco" engatar em cada mao em que este jogador e o pe. */
   macoStrength?: number;
+  /** Forca do maco quando o time do pe esta PERDENDO (sobe a trapaca). */
+  macoStrengthLosing?: number;
   /** Nº de distribuicoes candidatas avaliadas quando o maco engata. */
   macoAttempts?: number;
   /** Prob. [0,1] de BACKFIRE (escolhe a distribuicao PIOR para o time). */

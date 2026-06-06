@@ -16,7 +16,7 @@ import { TRUCO_PAULISTA } from "../core/rules.js";
 import { BotPlayer } from "../players/bot.js";
 import { EvolvedBotPlayer } from "../players/evolvedBot.js";
 import { Genome, parseGenome } from "../players/genome.js";
-import { DEFAULT_MACO_STRENGTH, MacoPlayer, macoCheat } from "../players/macoPlayer.js";
+import { MacoPlayer, macoCheatDynamic } from "../players/macoPlayer.js";
 import { Action, MaoDeOnzeDecision, Player, PlayerView, RaiseResponse } from "../players/player.js";
 import { Contender, evaluateContender } from "./arena.js";
 import { seededRng } from "./rng.js";
@@ -27,7 +27,8 @@ const load = (f: string): Genome => parseGenome(JSON.parse(readFileSync(resolve(
 const num = (n: string, d: number) => (Number(process.env[n]) > 0 ? Number(process.env[n]) : d);
 
 const GAMES = num("GAMES", 250);
-const STRENGTH = Number(process.env.MACO) >= 0 ? Number(process.env.MACO) : DEFAULT_MACO_STRENGTH;
+const BASE = Number(process.env.BASE) >= 0 ? Number(process.env.BASE) : 0.2;
+const LOSING = Number(process.env.LOSING) >= 0 ? Number(process.env.LOSING) : 0.8;
 const master = seededRng(num("SEED", 313));
 const seeds = Array.from({ length: GAMES }, () => Math.floor(master() * 1e9));
 const pct = (w: number) => `${(w * 100).toFixed(1)}%`;
@@ -54,19 +55,19 @@ const evo = (name: string, gen: Genome): Contender => ({
 });
 const inocente: Contender = { name: "inocente", makePlayer: (seat) => new BotPlayer(`inocente#${seat}`) };
 const folder: Contender = { name: "folder", makePlayer: (seat) => new FolderBot(`folder#${seat}`) };
-const maco = (s: number): Contender => ({
-  name: `maco@${s}`,
+const maco = (): Contender => ({
+  name: "maco",
   makePlayer: (seat: number, rng: Rng) =>
-    new MacoPlayer(`maco#${seat}`, g.m6!, { cheat: macoCheat(s), rules }, rng),
+    new MacoPlayer(`maco#${seat}`, g.m6!, { cheat: macoCheatDynamic(BASE, LOSING), rules }, rng),
 });
 
 const pool: Contender[] = [inocente, ...[1, 2, 3, 4, 5, 6].map((i) => evo(`m${i}`, g[`m${i}`]!))];
 
-console.log(`Avaliacao do maco — forca=${STRENGTH}, GAMES=${GAMES}/confronto\n`);
+console.log(`Avaliacao do maco DINAMICO — base=${BASE} perdendo=${LOSING}, GAMES=${GAMES}/confronto\n`);
 console.log("maco COM trapaca vs pool   |   m6 HONESTO (sem trapaca):");
 let mWorst = 1;
 for (const opp of pool) {
-  const on = await evaluateContender(maco(STRENGTH), [opp], seeds, rules);
+  const on = await evaluateContender(maco(), [opp], seeds, rules);
   const off = await evaluateContender(evo("m6", g.m6!), [opp], seeds, rules);
   mWorst = Math.min(mWorst, on.winRate);
   const d = (on.winRate - off.winRate) * 100;
@@ -76,5 +77,5 @@ for (const opp of pool) {
 }
 console.log(`   pior caso (com trapaca) = ${pct(mWorst)}`);
 
-const vsFolder = await evaluateContender(maco(STRENGTH), [folder], seeds, rules);
+const vsFolder = await evaluateContender(maco(), [folder], seeds, rules);
 console.log(`\nRoubo — vs um bot que SEMPRE corre: ${pct(vsFolder.winRate)}`);

@@ -165,6 +165,17 @@ export async function playHand(cfg: HandConfig): Promise<HandResult> {
   }
   const cheat = players[dealerSeat]?.cheat;
 
+  // Forca efetiva do maco: sobe se o time do pe esta PERDENDO no placar.
+  const macoEngage = (() => {
+    if (!cheat) return 0;
+    let maxOther = -Infinity;
+    for (let t = 0; t < scores.length; t++) if (t !== dealerTeam) maxOther = Math.max(maxOther, scores[t]!);
+    const losing = maxOther > (scores[dealerTeam] ?? 0);
+    return losing && cheat.macoStrengthLosing !== undefined
+      ? cheat.macoStrengthLosing
+      : cheat.macoStrength ?? 0;
+  })();
+
   // "Maco": objetivo de MANILHA ponderado por papel (parceiro > pe > adversario).
   const macoScore = (d: Deal): number => {
     const w = cheat?.macoWeights ?? { partner: 3, dealer: 2, opp: 1 };
@@ -180,8 +191,8 @@ export async function playHand(cfg: HandConfig): Promise<HandResult> {
 
   const dealOnce = (): Deal => {
     let d = deal(n, rules.cardsPerPlayer, cfg.rng);
-    // Maco: com prob. macoStrength, escolhe entre K candidatos (melhor; ou pior se backfire).
-    if (cheat?.macoStrength && rng() < cheat.macoStrength) {
+    // Maco: com prob. efetiva (sobe se perdendo), escolhe entre K candidatos.
+    if (cheat && macoEngage && rng() < macoEngage) {
       const K = Math.max(2, cheat.macoAttempts ?? 4);
       const cands: Deal[] = [d];
       for (let k = 1; k < K; k++) cands.push(deal(n, rules.cardsPerPlayer, cfg.rng));

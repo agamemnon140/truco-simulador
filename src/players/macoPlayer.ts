@@ -43,6 +43,11 @@ export function macoCheat(macoStrength: number): CheatProfile {
   };
 }
 
+/** Maco DINAMICO: forca `base` normalmente, sobe p/ `losing` se o time esta perdendo. */
+export function macoCheatDynamic(base: number, losing: number): CheatProfile {
+  return { ...macoCheat(base), macoStrengthLosing: losing };
+}
+
 export interface MacoOptions {
   cheat: CheatProfile;
   rules: RuleSet;
