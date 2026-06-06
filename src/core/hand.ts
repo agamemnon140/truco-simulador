@@ -76,7 +76,7 @@ export interface HandResult {
   /** Pontos a creditar a equipe vencedora (0 se anulada). */
   points: number;
   /** Por que a mao terminou. */
-  reason: "vazas" | "run" | "cancelled" | "fold";
+  reason: "vazas" | "run" | "cancelled" | "fold" | "giveup";
 }
 
 export interface HandConfig {
@@ -389,6 +389,18 @@ export async function playHand(cfg: HandConfig): Promise<HandResult> {
           }
           // Aumento aceito: o mesmo jogador agora deve jogar uma carta.
           continue;
+        }
+
+        if (action.type === "fold") {
+          // Desistir da mao: o adversario leva a mao pelo valor corrente.
+          const oppSeat = firstOpponentAfter(seat, team, teamOfSeat);
+          const result: HandResult = {
+            winningTeam: teamOfSeat[oppSeat]!,
+            points: valueNow(),
+            reason: "giveup",
+          };
+          emitHandEnd(result);
+          return result;
         }
 
         // Jogar uma carta: validar que esta na mao.

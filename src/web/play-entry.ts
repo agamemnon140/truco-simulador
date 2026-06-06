@@ -80,21 +80,25 @@ function withDelay(inner: Player, ms: number): Player {
 }
 
 /**
- * Envolve um bot para que ele NUNCA inicie/aumente truco: chama o bot sempre com
- * `canRaise=false`/`canCounter=false`, entao ele joga uma carta / aceita ou corre,
- * mas nao propoe aumento. Usado no parceiro-IA de um humano quando a opcao pede.
+ * Bot que e PARCEIRO de um humano. Dois ajustes para o humano "comandar" a dupla:
+ *  - decideMaoDeOnze: SEMPRE delegada ao humano (decisao de jogar/correr a mao de
+ *    onze e da dupla; o humano nunca deve ser passado para tras pelo bot).
+ *  - Quando `deferRaise` (opcao "parceiro nao pede truco"): o bot nunca inicia
+ *    truco (canRaise=false) e a RESPOSTA a um truco tambem vai para o humano.
  */
-function noInitiateRaise(inner: Player): Player {
+function partnerWrap(bot: Player, human: Player, deferRaise: boolean): Player {
   return {
-    name: inner.name,
-    chooseAction(view, _canRaise) {
-      return inner.chooseAction(view, false);
+    name: bot.name,
+    chooseAction(view, canRaise) {
+      return bot.chooseAction(view, deferRaise ? false : canRaise);
     },
-    respondToRaise(view, proposal, _canCounter) {
-      return inner.respondToRaise(view, proposal, false);
+    respondToRaise(view, proposal, canCounter) {
+      return deferRaise
+        ? human.respondToRaise(view, proposal, canCounter)
+        : bot.respondToRaise(view, proposal, canCounter);
     },
     decideMaoDeOnze(view, ctx) {
-      return inner.decideMaoDeOnze(view, ctx);
+      return human.decideMaoDeOnze(view, ctx); // humano decide a mao de onze da dupla
     },
   };
 }
@@ -104,16 +108,18 @@ function noInitiateRaise(inner: Player): Player {
  * NOTA: as cartas dos BOTS nunca saem do motor; `deal` so traz as maos dos humanos.
  */
 export type PlayEvent =
-  | { kind: "matchStart"; teamOfSeat: readonly TeamId[]; names: readonly string[]; humanSeats: readonly Seat[] }
+  | { kind: "matchStart"; teamOfSeat: readonly TeamId[]; names: readonly string[]; humanSeats: readonly Seat[]; seatBots: readonly (string | null)[] }
   | { kind: "handStart"; handNumber: number; firstSeat: Seat }
   | {
       kind: "deal";
       vira: Card;
       manilha: string;
-      /** Maos dos assentos HUMANOS (seat -> cartas). Bots nao incluidos. */
+      /** Maos dos assentos HUMANOS (seat -> cartas). Vazio quando `blind`. */
       humanHands: Record<number, readonly Card[]>;
       /** Quantidade de cartas de cada assento (para desenhar verso). */
       handSizes: readonly number[];
+      /** Mao de ferro (11x11): cartas ocultas — ninguem ve as proprias. */
+      blind: boolean;
     }
   | { kind: "maoDeOnze"; mode: "single" | "both"; teamAt11?: TeamId; value: number }
   | { kind: "maoDeOnzeDecision"; team: TeamId; decision: MaoDeOnzeDecision }
@@ -165,6 +171,10 @@ export async function playInteractive(
   let liveVira: Card | null = null;
   let liveVaza = -1;
   let liveCurrentPlays: Play[] = [];
+  // placar ao vivo (para detectar a "mao de ferro" 11x11 ja na distribuicao)
+  let liveScores: number[] = opts.initialScores
+    ? opts.initialScores.slice()
+    : new Array(rules.numTeams).fill(0);
   const partnerOf = (seat: Seat): Seat => {
     const idx = teamOfSeat.findIndex(
       (t, other) => other !== seat && t === teamOfSeat[seat],
@@ -210,10 +220,9 @@ export async function playInteractive(
     };
   };
 
-  const players: Player[] = seats.map((cfg, seat) => {
-    if (cfg.kind === "human") {
-      return new HumanWebPlayer(cfg.name, ui, consultProvider);
-    }
+  // Passo 1: jogadores base (humano ou bot puro).
+  const base: Player[] = seats.map((cfg, seat) => {
+    if (cfg.kind === "human") return new HumanWebPlayer(cfg.name, ui, consultProvider);
     const pers = getPersonality(cfg.botId);
     const onDecision: ((info: DecisionInfo) => void) | undefined = opts.explain
       ? (info) => {
@@ -225,8 +234,19 @@ export async function playInteractive(
           if (text) ui.onEvent({ kind: "explain", seat, text });
         }
       : undefined;
-    let p = pers.create(cfg.name ?? pers.label, mkRng(seat + 1), onDecision);
-    if (!allowPartnerRaise && partnerIsHuman(seat)) p = noInitiateRaise(p);
+    return pers.create(cfg.name ?? pers.label, mkRng(seat + 1), onDecision);
+  });
+  // Assento do humano que e parceiro de `seat` (ou -1).
+  const humanMateOf = (seat: Seat): Seat =>
+    teamOfSeat.findIndex(
+      (t, other) => other !== seat && t === teamOfSeat[seat] && humanSeats.includes(other),
+    );
+  // Passo 2: aplica decorators. Todo bot parceiro de um humano deixa a mao de onze
+  // para o humano; se a opcao pedir, tambem deixa a resposta ao truco com ele.
+  const players: Player[] = base.map((p, seat) => {
+    if (seats[seat]!.kind !== "ai") return p;
+    const mate = partnerIsHuman(seat) ? humanMateOf(seat) : -1;
+    if (mate >= 0) p = partnerWrap(p, base[mate]!, !allowPartnerRaise);
     if (delay > 0) p = withDelay(p, delay);
     return p;
   });
@@ -234,7 +254,8 @@ export async function playInteractive(
 
   const observer: MatchObserver = {
     onMatchStart({ teamOfSeat: tos }) {
-      ui.onEvent({ kind: "matchStart", teamOfSeat: tos, names, humanSeats });
+      const seatBots = seats.map((s) => (s.kind === "ai" ? s.botId : null));
+      ui.onEvent({ kind: "matchStart", teamOfSeat: tos, names, humanSeats, seatBots });
     },
     onHandStart({ handNumber, firstSeat }) {
       ui.onEvent({ kind: "handStart", handNumber, firstSeat });
@@ -245,14 +266,19 @@ export async function playInteractive(
       liveVira = vira;
       liveVaza = -1;
       liveCurrentPlays = [];
+      // Mao de ferro (11x11): ambas as equipes com pointsToWin-1 -> jogada as cegas.
+      const threshold = rules.pointsToWin - 1;
+      const blind = liveScores.filter((s) => s === threshold).length >= 2;
+      // Em mao de ferro NAO revelamos as cartas (nem mandamos ao cliente).
       const humanHands: Record<number, readonly Card[]> = {};
-      for (const s of humanSeats) humanHands[s] = hands[s]!.slice();
+      if (!blind) for (const s of humanSeats) humanHands[s] = hands[s]!.slice();
       ui.onEvent({
         kind: "deal",
         vira,
         manilha,
         humanHands,
         handSizes: hands.map((h) => h.length),
+        blind,
       });
     },
     onMaoDeOnze({ mode, teamAt11, value }) {
@@ -282,6 +308,7 @@ export async function playInteractive(
       ui.onEvent({ kind: "vazaResolved", vazaIndex, result, plays });
     },
     onScoreUpdate({ result, scores }) {
+      liveScores = scores.slice();
       ui.onEvent({ kind: "score", result, scores });
     },
     onMatchEnd({ winningTeam, scores }) {

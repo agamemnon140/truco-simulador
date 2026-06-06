@@ -21,9 +21,18 @@ var Truco = (() => {
   // src/web/index.ts
   var index_exports = {};
   __export(index_exports, {
+    CALC_POLICIES: () => CALC_POLICIES,
     PERSONALITIES: () => PERSONALITIES,
+    Rank: () => Rank,
+    Suit: () => Suit,
+    TRUCO_PAULISTA: () => TRUCO_PAULISTA,
+    calcScenario: () => calcScenario,
+    cardStrength: () => cardStrength,
+    cardToString: () => cardToString,
     fmtCard: () => fmtCard,
+    manilhaRank: () => manilhaRank,
     playInteractive: () => playInteractive,
+    resolveVaza: () => resolveVaza,
     simulate: () => simulate,
     teamName: () => teamName
   });
@@ -59,6 +68,26 @@ var Truco = (() => {
   }
 
   // src/core/types.ts
+  var Suit = /* @__PURE__ */ ((Suit2) => {
+    Suit2["Ouros"] = "ouros";
+    Suit2["Espadas"] = "espadas";
+    Suit2["Copas"] = "copas";
+    Suit2["Paus"] = "paus";
+    return Suit2;
+  })(Suit || {});
+  var Rank = /* @__PURE__ */ ((Rank3) => {
+    Rank3["Quatro"] = "4";
+    Rank3["Cinco"] = "5";
+    Rank3["Seis"] = "6";
+    Rank3["Sete"] = "7";
+    Rank3["Dama"] = "Q";
+    Rank3["Valete"] = "J";
+    Rank3["Rei"] = "K";
+    Rank3["As"] = "A";
+    Rank3["Dois"] = "2";
+    Rank3["Tres"] = "3";
+    return Rank3;
+  })(Rank || {});
   function cardsEqual(a, b) {
     return a.rank === b.rank && a.suit === b.suit;
   }
@@ -264,6 +293,14 @@ var Truco = (() => {
       leader,
       hands: hands.map((h) => h.slice())
     });
+    const broadcast = (ev) => {
+      for (let i = 0; i < n; i++) players[i].observe?.(ev, i);
+    };
+    const emitHandEnd = (r) => {
+      observer?.onHandEnd?.(r);
+      broadcast({ type: "handEnd", winningTeam: r.winningTeam, points: r.points });
+    };
+    broadcast({ type: "handStart", teamOfSeat, vira });
     const partnerSeat = (seat) => {
       for (let k = 1; k < n; k++) {
         const s = (seat + k) % n;
@@ -336,7 +373,7 @@ var Truco = (() => {
           points: rules.baseValue,
           reason: "fold"
         };
-        observer?.onHandEnd?.(result);
+        emitHandEnd(result);
         return result;
       }
     } else if (onzeBoth) {
@@ -357,6 +394,13 @@ var Truco = (() => {
           forfeitValue: forfeitValueOnRun(betting, rules)
         };
         observer?.onRaiseProposed?.(proposal);
+        broadcast({
+          type: "raiseProposed",
+          seat: proposer,
+          team: proposingTeam,
+          level: lvl.index,
+          value: lvl.value
+        });
         const responderSeat = firstOpponentAfter(
           proposer,
           proposingTeam,
@@ -369,6 +413,13 @@ var Truco = (() => {
           canCounter
         );
         observer?.onRaiseResponse?.({ responder: responderSeat, response });
+        broadcast({
+          type: "raiseResponse",
+          seat: responderSeat,
+          team: teamOfSeat[responderSeat],
+          response,
+          proposingTeam
+        });
         if (response === "run") {
           return { winner: proposingTeam, points: proposal.forfeitValue };
         }
@@ -401,10 +452,20 @@ var Truco = (() => {
                 points: outcome.points,
                 reason: "run"
               };
-              observer?.onHandEnd?.(result2);
+              emitHandEnd(result2);
               return result2;
             }
             continue;
+          }
+          if (action.type === "fold") {
+            const oppSeat = firstOpponentAfter(seat, team, teamOfSeat);
+            const result2 = {
+              winningTeam: teamOfSeat[oppSeat],
+              points: valueNow(),
+              reason: "giveup"
+            };
+            emitHandEnd(result2);
+            return result2;
           }
           const hand = hands[seat];
           const idx = hand.findIndex((c) => cardsEqual(c, action.card));
@@ -416,6 +477,7 @@ var Truco = (() => {
           hand.splice(idx, 1);
           plays.push({ seat, card: action.card });
           observer?.onPlay?.({ seat, card: action.card, vazaIndex: v });
+          broadcast({ type: "play", seat, team, card: action.card, vazaIndex: v });
           break;
         }
       }
@@ -430,7 +492,7 @@ var Truco = (() => {
           points: 0,
           reason: "cancelled"
         };
-        observer?.onHandEnd?.(handResult);
+        emitHandEnd(handResult);
         return handResult;
       }
       if (decision !== "continue") {
@@ -439,7 +501,7 @@ var Truco = (() => {
           points: valueNow(),
           reason: "vazas"
         };
-        observer?.onHandEnd?.(handResult);
+        emitHandEnd(handResult);
         return handResult;
       }
       if (result.winningSeat !== null) leader = result.winningSeat;
@@ -449,7 +511,7 @@ var Truco = (() => {
       points: 0,
       reason: "cancelled"
     };
-    observer?.onHandEnd?.(fallback);
+    emitHandEnd(fallback);
     return fallback;
   }
 
@@ -893,103 +955,210 @@ var Truco = (() => {
   // src/genomes/melhorada_6.json
   var melhorada_6_default = {
     cardWeights: [
-      -0.09947244764125453,
-      -0.7467170654120511,
-      1.747639614872926,
-      1.5145943307693546,
-      0.9447357519209316,
-      0.054774220921203334,
-      -1.3040695303454708,
-      -2.3949226164393087,
-      -0.040459349377636844,
-      -1.0172114742998444,
-      0,
-      -0.2001646835044764,
-      -0.6118375219332245,
-      -0.3133274409815786,
-      -0.09919224086195245,
-      -1.39621460351137,
-      -0.18534942731720774,
+      -0.22578993346299892,
+      -0.9068899381607889,
+      1.7534961985855564,
+      1.6288936674784673,
+      0.791171222276303,
+      -0.28885488713388874,
+      -1.1954879760960795,
+      -2.7038943655471472,
+      0.654266519605091,
+      -0.7112835444048878,
+      -0.006965842354839838,
+      1763163607279017e-19,
+      -0.5586734905464822,
+      -0.6730720302027654,
+      -0.022080842604697337,
+      0.20684932165874065,
+      -0.5889503472954555,
       -1.2053875528035682,
-      -0.5987664801918458,
-      0.2704426265378383
+      -1.3173966380075224,
+      -0.3006664245322686
     ],
     betWeights: [
-      -0.42259371284497926,
+      -0.3616680587917174,
       0.9703532543499023,
-      1.5892890401414732,
-      2.280868402355904,
-      0.8590295994103726,
-      -0.583898725829009,
+      1.3115563623593873,
+      2.075876417313022,
+      0.6806729351727765,
+      -0.6963913796460156,
       -1.437725080129685,
-      1.0061337783462814,
-      1.6309927462855818,
-      0,
+      0.9995463616862647,
+      1.6522634373926923,
+      -0.03739906528506987,
       0.8319185996676355,
       -0.30598660992664356,
-      -0.05837362830966189,
-      -0.20705665479729374,
-      0.6978757400107399,
-      -2.0809704247565217,
-      0.305995317271937,
+      -0.10773202983098727,
+      -0.21591694368034603,
+      -0.014364459644615121,
+      -0.9898762618803658,
+      0.5947847090823822,
       0.2568162377689622,
-      0.07901513646045474,
+      0.09595201708317541,
       -0.03485351890608802
     ],
     thrCall: 1.6986662337955925,
     thrAccept: -0.5771082665716245,
-    thrRaise: 1.5661671734406402,
-    pBluff: -2.6385323651746093,
-    playTemp: -0.7272449111257443,
+    thrRaise: 1.5092827362817256,
+    pBluff: -2.568657993705654,
+    playTemp: -0.890157880049659,
     cardBucketThresholds: [
-      0.966570424372298,
-      0.1779163750510066,
-      1.0738897248043748,
-      0.12390713800262455,
-      0.41987979733294745,
+      0.9630698348671332,
+      0.41516923606387707,
+      0.6852848261512783,
+      0.13666691517649188,
+      0.5525456300097613,
       0.5762108479712053,
-      0.1450507417738277,
-      0.5070461005534337,
+      0.15092260356345838,
+      0.4762582188362056,
       0.6175107051808801
     ],
     cardBucketWeights: [
-      -0.511329320344379,
-      -0.11594786705105378,
+      -0.08613318169275315,
+      -0.03707469364925106,
       0.07408139569001534,
-      -0.2634019871186127,
+      0.029974919473882113,
       0.0012481302909117253,
-      -0.023919081388614316,
-      0.30892221721398583,
-      -0.898894693348576,
-      -0.08293224725706369,
+      -0.13669415520257322,
+      0.24860559434883556,
+      0.057090914251128375,
+      0.050801699196029816,
       -0.27947527111927517,
       -0.1451863839384302,
-      -0.3847463179195418
+      -0.33229942449211763
     ],
     betBucketThresholds: [
-      0.7011041977430426,
-      1.1765637501981314,
-      0.0847963234031619,
+      0.7973153384094868,
+      1.2472587699684168,
+      0.17607703171632197,
       0.1597867063776348,
-      0.9246125098122981,
-      -0.7517272028004811,
-      0.4649854487652979,
-      0.8585034356181124,
-      1.303866593579698
+      0.9074383051383244,
+      -0.7579143370528707,
+      0.263858049983593,
+      0.8491327908508797,
+      1.6730227667160358
     ],
     betBucketWeights: [
-      0.014897405363492655,
-      -0.6293921618293316,
+      0.01491282904657091,
+      -0.1999017894357682,
       -0.015392200821511576,
       0.274996072609051,
-      0.2308225160247684,
-      0.07174921874316867,
-      0.6007565008481028,
-      0.8987139976758896,
-      -0.13325069245316404,
-      0.13453472121145518,
-      0,
-      0.0901143618956846
+      0.27847638268348945,
+      0.1403559954385874,
+      0.05704341184412216,
+      0.4720166177144881,
+      0.026710440302213964,
+      0.08946608607459709,
+      -0.028093307329962902,
+      -0.11338242645558944
+    ]
+  };
+
+  // src/genomes/melhorada_7.json
+  var melhorada_7_default = {
+    cardWeights: [
+      -0.48200256782841705,
+      -1.0947051290095615,
+      1.3823347779241986,
+      1.4220299831117267,
+      0.5405975579212292,
+      -0.09045291411010961,
+      -1.2715616780018062,
+      -2.7038943655471472,
+      0.6325969957760517,
+      -0.9156567541134111,
+      0.3615464664225621,
+      -0.1379581963158255,
+      -0.5586734905464822,
+      -0.7798472793204702,
+      -0.0672392808122906,
+      0.03329758586033277,
+      0.2312091137809679,
+      -1.530052002795428,
+      -1.388971077034883,
+      0.420890545676497
+    ],
+    betWeights: [
+      -0.34459903971076,
+      0.9703532543499023,
+      1.4741128628398268,
+      2.0071182590168526,
+      0.7296489675533383,
+      -1.4703617430229812,
+      -1.3418654515931798,
+      0.9404809227579113,
+      1.6129744050958474,
+      -0.20374674199044263,
+      1.1775737161793938,
+      0.5410375805448779,
+      0.7195375101642156,
+      -0.32536598194447536,
+      -0.014364459644615121,
+      -0.8931996958420775,
+      0.5373111790512187,
+      0.43661552864132613,
+      -0.30431412156419385,
+      -0.06511713883514672,
+      -0.004673585897117895,
+      0.1219786444743601,
+      -0.12061101426997364,
+      0.10137004062691303
+    ],
+    thrCall: 1.394266389833835,
+    thrAccept: -0.7206226748783386,
+    thrRaise: 2.09903920704878,
+    pBluff: -2.7054867713592445,
+    playTemp: 0.2967444670767607,
+    cardBucketThresholds: [
+      0.9318554942054279,
+      0.5334543441901962,
+      0.9472511185111175,
+      -0.23060100755079765,
+      0.05502748043157177,
+      0.8621481473318753,
+      -0.11393735819787715,
+      0.41356484940778,
+      0.875915456299261
+    ],
+    cardBucketWeights: [
+      -0.40896071319368554,
+      -0.18431248771714304,
+      0.20047980460066456,
+      -0.20781015067606778,
+      0.0012481302909117253,
+      -0.14931046332489062,
+      0.335964765083749,
+      0.057090914251128375,
+      -0.47641091862690077,
+      -0.17202388583302877,
+      -0.3463986496829305,
+      -0.08548348796325504
+    ],
+    betBucketThresholds: [
+      1.1127652122457468,
+      1.0641270331131423,
+      0.8862017315876769,
+      0.16808187627485943,
+      1.2335404239573216,
+      -0.8053213788612419,
+      -0.16863903039999856,
+      0.6197749180754631,
+      1.7513992572010129
+    ],
+    betBucketWeights: [
+      -0.07077556730212393,
+      0.09841458672707237,
+      -0.31590447366783364,
+      0.274996072609051,
+      -0.7788995703761346,
+      -0.48851387506608485,
+      -0.565665619964632,
+      0.3660110816049989,
+      0.21518689003027097,
+      -0.025165785734406226,
+      -0.20485268069742313,
+      -0.4790107787661747
     ]
   };
 
@@ -1062,8 +1231,9 @@ var Truco = (() => {
   var CARD_OWN_FEATURE_COUNT = 8;
   var HAND_STRENGTH_FEATURE_COUNT = 6;
   var GTO_FEATURE_COUNT = 2;
+  var OPP_FEATURE_COUNT = 4;
   var CARD_FEATURE_COUNT = CARD_OWN_FEATURE_COUNT + CONTEXT_FEATURE_COUNT;
-  var BET_FEATURE_COUNT = HAND_STRENGTH_FEATURE_COUNT + CONTEXT_FEATURE_COUNT + GTO_FEATURE_COUNT;
+  var BET_FEATURE_COUNT = HAND_STRENGTH_FEATURE_COUNT + CONTEXT_FEATURE_COUNT + GTO_FEATURE_COUNT + OPP_FEATURE_COUNT;
   var CONTEXT_FEATURE_NAMES = [
     "bias",
     "rodada",
@@ -1101,10 +1271,13 @@ var Truco = (() => {
     ...CONTEXT_FEATURE_NAMES
   ];
   var GTO_FEATURE_NAMES = ["bluffability", "aFrenteTarde"];
+  var OPP_FEATURE_NAMES = ["oppFold", "oppTruco", "oppBluff", "oppAggr"];
+  var NEUTRAL_OPP_FEATURES = new Array(OPP_FEATURE_COUNT).fill(0.5);
   var BET_FEATURE_NAMES = [
     ...HAND_STRENGTH_FEATURE_NAMES,
     ...CONTEXT_FEATURE_NAMES,
-    ...GTO_FEATURE_NAMES
+    ...GTO_FEATURE_NAMES,
+    ...OPP_FEATURE_NAMES
   ];
   function maxStrength2(view) {
     return view.rules.rankOrder.length + view.rules.manilhaSuitOrder.length - 1;
@@ -1246,7 +1419,7 @@ var Truco = (() => {
     ];
     return [...own, ...context];
   }
-  function betFeatures(view, pre) {
+  function betFeatures(view, pre, oppFeatures = NEUTRAL_OPP_FEATURES) {
     const max = maxStrength2(view);
     const hand = view.hand;
     const cpp = view.rules.cardsPerPlayer || 1;
@@ -1281,7 +1454,7 @@ var Truco = (() => {
     const wonFirst = results.length >= 1 && results[0].winningTeam === view.team ? 1 : 0;
     const vazaNorm = cpp > 1 ? results.length / (cpp - 1) : 0;
     const aFrenteTarde = wonFirst * Math.min(1, vazaNorm);
-    return [...strength, ...pre.context, bluffability, aFrenteTarde];
+    return [...strength, ...pre.context, bluffability, aFrenteTarde, ...oppFeatures];
   }
 
   // src/players/buckets.ts
@@ -1343,8 +1516,8 @@ var Truco = (() => {
     const bucketSum = buckets.reduce((s, b) => s + b.weight, 0);
     return { score: linear + bucketSum, linear, buckets };
   }
-  function situationScoreParts(genome, view, pre) {
-    const feats = betFeatures(view, pre);
+  function situationScoreParts(genome, view, pre, oppFeatures) {
+    const feats = betFeatures(view, pre, oppFeatures);
     const linear = dot(genome.betWeights, feats);
     const buckets = bucketContribs(
       feats,
@@ -1358,8 +1531,8 @@ var Truco = (() => {
   function cardScore(genome, view, card, pre) {
     return cardScoreParts(genome, view, card, pre).score;
   }
-  function situationScore(genome, view, pre) {
-    return situationScoreParts(genome, view, pre).score;
+  function situationScore(genome, view, pre, oppFeatures) {
+    return situationScoreParts(genome, view, pre, oppFeatures).score;
   }
 
   // src/players/explain.ts
@@ -1464,20 +1637,25 @@ var Truco = (() => {
   var CARD_MARGIN = 0.4;
   var CARD_NUDGE = 0.6;
   var EvolvedBotPlayer = class {
-    constructor(name, genome, rng = Math.random, onDecision, ignoreSignals = false) {
+    constructor(name, genome, rng = Math.random, onDecision, ignoreSignals = false, opponentModel) {
       this.name = name;
       this.genome = genome;
       this.rng = rng;
       this.onDecision = onDecision;
       this.ignoreSignals = ignoreSignals;
+      this.opponentModel = opponentModel;
+    }
+    /** Recebe os eventos da partida e atualiza o modelo de oponente (se houver). */
+    observe(event, selfSeat) {
+      this.opponentModel?.observe(event, selfSeat);
     }
     /** Sinais do parceiro (undefined se a comunicacao esta desligada). */
     signals(view) {
       return this.ignoreSignals ? void 0 : view.partnerSignals;
     }
-    /** Score S da situacao para decisoes de aposta (linear + faixas). */
+    /** Score S da situacao para decisoes de aposta (linear + faixas + modelo de oponente). */
     situationScore(view) {
-      return situationScore(this.genome, view, precompute(view));
+      return situationScore(this.genome, view, precompute(view), this.opponentModel?.features());
     }
     async chooseAction(view, canRaise) {
       if (canRaise && !view.blind) {
@@ -1586,12 +1764,13 @@ var Truco = (() => {
       throw new Error(`cardWeights invalido (esperado ${CARD_FEATURE_COUNT} numeros).`);
     }
     const cardWeights = g.cardWeights;
-    const OLD_BET = BET_FEATURE_COUNT - GTO_FEATURE_COUNT;
-    let betWeights;
-    if (okArr(g.betWeights, BET_FEATURE_COUNT)) betWeights = g.betWeights;
-    else if (okArr(g.betWeights, OLD_BET))
-      betWeights = [...g.betWeights, ...new Array(GTO_FEATURE_COUNT).fill(0)];
-    else throw new Error(`betWeights invalido (esperado ${OLD_BET} ou ${BET_FEATURE_COUNT} numeros).`);
+    const base = HAND_STRENGTH_FEATURE_COUNT + CONTEXT_FEATURE_COUNT;
+    const KNOWN_BET = /* @__PURE__ */ new Set([base, base + GTO_FEATURE_COUNT, BET_FEATURE_COUNT]);
+    const bw = g.betWeights;
+    if (!Array.isArray(bw) || !bw.every((x) => typeof x === "number") || !KNOWN_BET.has(bw.length)) {
+      throw new Error(`betWeights invalido (esperado um de ${[...KNOWN_BET].join("/")} numeros).`);
+    }
+    const betWeights = bw.length === BET_FEATURE_COUNT ? bw : [...bw, ...new Array(BET_FEATURE_COUNT - bw.length).fill(0)];
     for (const k of ["thrCall", "thrAccept", "thrRaise", "pBluff", "playTemp"]) {
       if (typeof g[k] !== "number") throw new Error(`Campo ${k} ausente/invalido no genoma.`);
     }
@@ -1627,6 +1806,87 @@ var Truco = (() => {
     };
   }
 
+  // src/players/opponentModel.ts
+  var OpponentModel = class {
+    constructor(rules) {
+      this.rules = rules;
+    }
+    myTeam = -1;
+    teamOfSeat = [];
+    vira = null;
+    // Respostas do oponente aos NOSSOS trucos (foldToTruco).
+    ourAnswered = 0;
+    oppRuns = 0;
+    // Iniciativa de truco do oponente.
+    hands = 0;
+    oppProposals = 0;
+    // Blefe: maos em que o oponente trucou e a melhor carta dele foi fraca.
+    oppProposalHands = 0;
+    oppBluffHands = 0;
+    // Agressao: forca media (normalizada) das cartas jogadas pelo oponente.
+    playSum = 0;
+    playCount = 0;
+    // Estado temporario da mao corrente.
+    handOppProposed = false;
+    handOppMaxStrNorm = -1;
+    isOpp(team) {
+      return this.myTeam >= 0 && team !== this.myTeam;
+    }
+    observe(ev, selfSeat) {
+      switch (ev.type) {
+        case "handStart": {
+          this.teamOfSeat = ev.teamOfSeat;
+          this.myTeam = ev.teamOfSeat[selfSeat];
+          this.vira = ev.vira;
+          this.hands++;
+          this.handOppProposed = false;
+          this.handOppMaxStrNorm = -1;
+          break;
+        }
+        case "play": {
+          if (this.isOpp(ev.team) && this.vira) {
+            const max = this.rules.rankOrder.length + this.rules.manilhaSuitOrder.length - 1;
+            const norm = cardStrength(ev.card, this.vira, this.rules) / max;
+            this.playSum += norm;
+            this.playCount++;
+            if (norm > this.handOppMaxStrNorm) this.handOppMaxStrNorm = norm;
+          }
+          break;
+        }
+        case "raiseProposed": {
+          if (this.isOpp(ev.team)) {
+            this.oppProposals++;
+            this.handOppProposed = true;
+          }
+          break;
+        }
+        case "raiseResponse": {
+          if (this.isOpp(ev.team) && ev.proposingTeam === this.myTeam) {
+            this.ourAnswered++;
+            if (ev.response === "run") this.oppRuns++;
+          }
+          break;
+        }
+        case "handEnd": {
+          if (this.handOppProposed) {
+            this.oppProposalHands++;
+            if (this.handOppMaxStrNorm >= 0 && this.handOppMaxStrNorm < 0.5) this.oppBluffHands++;
+          }
+          break;
+        }
+      }
+    }
+    /** Features [0,1] com suavizacao Beta(1,1) -> 0.5 sem dados. */
+    features() {
+      const beta = (a, n) => (a + 1) / (n + 2);
+      const oppFold = beta(this.oppRuns, this.ourAnswered);
+      const oppTruco = beta(this.oppProposals, this.hands);
+      const oppBluff = beta(this.oppBluffHands, this.oppProposalHands);
+      const oppAggr = this.playCount > 0 ? (this.playSum + 0.5) / (this.playCount + 1) : 0.5;
+      return [oppFold, oppTruco, oppBluff, oppAggr];
+    }
+  };
+
   // src/players/personalities.ts
   var melhorada1Genome = parseGenome(melhorada_1_default);
   var melhorada2Genome = parseGenome(melhorada_2_default);
@@ -1634,6 +1894,7 @@ var Truco = (() => {
   var melhorada4Genome = parseGenome(melhorada_4_default);
   var melhorada5Genome = parseGenome(melhorada_5_default);
   var melhorada6Genome = parseGenome(melhorada_6_default);
+  var melhorada7Genome = parseGenome(melhorada_7_default);
   var PERSONALITIES = [
     {
       id: "inocente",
@@ -1676,6 +1937,19 @@ var Truco = (() => {
       label: "Melhorada 6",
       description: "Comunicacao minima (sinais do parceiro quando incerta) + intuicoes GTO de blefe.",
       create: (name, rng, onDecision) => new EvolvedBotPlayer(name, melhorada6Genome, rng, onDecision)
+    },
+    {
+      id: "melhorada_7",
+      label: "Melhorada 7",
+      description: "Modela os adversarios (quem truca/corre/blefa) e adapta para explora-los.",
+      create: (name, rng, onDecision) => new EvolvedBotPlayer(
+        name,
+        melhorada7Genome,
+        rng,
+        onDecision,
+        false,
+        new OpponentModel(TRUCO_PAULISTA)
+      )
     }
   ];
   function getPersonality(id) {
@@ -1845,17 +2119,17 @@ var Truco = (() => {
       }
     };
   }
-  function noInitiateRaise(inner) {
+  function partnerWrap(bot, human, deferRaise) {
     return {
-      name: inner.name,
-      chooseAction(view, _canRaise) {
-        return inner.chooseAction(view, false);
+      name: bot.name,
+      chooseAction(view, canRaise) {
+        return bot.chooseAction(view, deferRaise ? false : canRaise);
       },
-      respondToRaise(view, proposal, _canCounter) {
-        return inner.respondToRaise(view, proposal, false);
+      respondToRaise(view, proposal, canCounter) {
+        return deferRaise ? human.respondToRaise(view, proposal, canCounter) : bot.respondToRaise(view, proposal, canCounter);
       },
       decideMaoDeOnze(view, ctx) {
-        return inner.decideMaoDeOnze(view, ctx);
+        return human.decideMaoDeOnze(view, ctx);
       }
     };
   }
@@ -1877,6 +2151,7 @@ var Truco = (() => {
     let liveVira = null;
     let liveVaza = -1;
     let liveCurrentPlays = [];
+    let liveScores = opts.initialScores ? opts.initialScores.slice() : new Array(rules.numTeams).fill(0);
     const partnerOf = (seat) => {
       const idx = teamOfSeat.findIndex(
         (t, other) => other !== seat && t === teamOfSeat[seat]
@@ -1919,24 +2194,30 @@ var Truco = (() => {
         }
       };
     };
-    const players = seats.map((cfg, seat) => {
-      if (cfg.kind === "human") {
-        return new HumanWebPlayer(cfg.name, ui, consultProvider);
-      }
+    const base = seats.map((cfg, seat) => {
+      if (cfg.kind === "human") return new HumanWebPlayer(cfg.name, ui, consultProvider);
       const pers = getPersonality(cfg.botId);
       const onDecision = opts.explain ? (info) => {
         const text = info.raised ? formatBetting(info.betting, info.name) : info.cardChoice ? formatCardChoice(info.cardChoice, info.name) : "";
         if (text) ui.onEvent({ kind: "explain", seat, text });
       } : void 0;
-      let p = pers.create(cfg.name ?? pers.label, mkRng(seat + 1), onDecision);
-      if (!allowPartnerRaise && partnerIsHuman(seat)) p = noInitiateRaise(p);
+      return pers.create(cfg.name ?? pers.label, mkRng(seat + 1), onDecision);
+    });
+    const humanMateOf = (seat) => teamOfSeat.findIndex(
+      (t, other) => other !== seat && t === teamOfSeat[seat] && humanSeats.includes(other)
+    );
+    const players = base.map((p, seat) => {
+      if (seats[seat].kind !== "ai") return p;
+      const mate = partnerIsHuman(seat) ? humanMateOf(seat) : -1;
+      if (mate >= 0) p = partnerWrap(p, base[mate], !allowPartnerRaise);
       if (delay > 0) p = withDelay(p, delay);
       return p;
     });
     const names = players.map((p) => p.name);
     const observer = {
       onMatchStart({ teamOfSeat: tos }) {
-        ui.onEvent({ kind: "matchStart", teamOfSeat: tos, names, humanSeats });
+        const seatBots = seats.map((s) => s.kind === "ai" ? s.botId : null);
+        ui.onEvent({ kind: "matchStart", teamOfSeat: tos, names, humanSeats, seatBots });
       },
       onHandStart({ handNumber, firstSeat }) {
         ui.onEvent({ kind: "handStart", handNumber, firstSeat });
@@ -1946,14 +2227,17 @@ var Truco = (() => {
         liveVira = vira;
         liveVaza = -1;
         liveCurrentPlays = [];
+        const threshold = rules.pointsToWin - 1;
+        const blind = liveScores.filter((s) => s === threshold).length >= 2;
         const humanHands = {};
-        for (const s of humanSeats) humanHands[s] = hands[s].slice();
+        if (!blind) for (const s of humanSeats) humanHands[s] = hands[s].slice();
         ui.onEvent({
           kind: "deal",
           vira,
           manilha,
           humanHands,
-          handSizes: hands.map((h) => h.length)
+          handSizes: hands.map((h) => h.length),
+          blind
         });
       },
       onMaoDeOnze({ mode, teamAt11, value }) {
@@ -1985,6 +2269,7 @@ var Truco = (() => {
         ui.onEvent({ kind: "vazaResolved", vazaIndex, result, plays });
       },
       onScoreUpdate({ result, scores }) {
+        liveScores = scores.slice();
         ui.onEvent({ kind: "score", result, scores });
       },
       onMatchEnd({ winningTeam, scores }) {
@@ -1998,6 +2283,599 @@ var Truco = (() => {
       rng: opts.seed === void 0 ? void 0 : seededRng2(opts.seed),
       initialScores: opts.initialScores
     });
+  }
+
+  // src/training/rng.ts
+  function seededRng3(seed) {
+    let s = seed >>> 0;
+    if (s === 0) s = 2654435769;
+    return () => {
+      s = 1664525 * s + 1013904223 >>> 0;
+      return s / 4294967296;
+    };
+  }
+
+  // src/analysis/worlds.ts
+  function seenCards(view) {
+    const seen = [view.vira, ...view.hand];
+    for (const vaza of view.completedVazaPlays) {
+      for (const p of vaza) seen.push(p.card);
+    }
+    for (const p of view.currentVazaPlays) seen.push(p.card);
+    return seen;
+  }
+  function unknownCards(view) {
+    const seen = seenCards(view);
+    return buildDeck().filter((c) => !seen.some((s) => cardsEqual(s, c)));
+  }
+  function playedCountBySeat(view, n) {
+    const counts = new Array(n).fill(0);
+    for (const vaza of view.completedVazaPlays) {
+      for (const p of vaza) counts[p.seat] += 1;
+    }
+    for (const p of view.currentVazaPlays) counts[p.seat] += 1;
+    return counts;
+  }
+  function remainingBySeat(view) {
+    const n = view.rules.numPlayers;
+    const played = playedCountBySeat(view, n);
+    const remaining = new Array(n);
+    for (let s = 0; s < n; s++) remaining[s] = view.rules.cardsPerPlayer - played[s];
+    return remaining;
+  }
+  function dealUnknown(view, remaining, unknown) {
+    const n = view.rules.numPlayers;
+    const dealt = Array.from({ length: n }, () => []);
+    let idx = 0;
+    for (let s = 0; s < n; s++) {
+      if (s === view.seat) continue;
+      for (let c = 0; c < remaining[s]; c++) dealt[s].push(unknown[idx++]);
+    }
+    return dealt;
+  }
+  function buildWorldHands(view, dealt) {
+    const n = view.rules.numPlayers;
+    const hands = new Array(n);
+    for (let s = 0; s < n; s++) {
+      hands[s] = s === view.seat ? view.hand.slice() : dealt[s].slice();
+    }
+    return hands;
+  }
+  function choose(n, k) {
+    if (k < 0 || k > n) return 0;
+    k = Math.min(k, n - k);
+    let r = 1;
+    for (let i = 0; i < k; i++) r = r * (n - i) / (i + 1);
+    return Math.round(r);
+  }
+  function countWorlds(remaining, heroSeat, u) {
+    let pool = u;
+    let total = 1;
+    for (let s = 0; s < remaining.length; s++) {
+      if (s === heroSeat) continue;
+      total *= choose(pool, remaining[s]);
+      pool -= remaining[s];
+      if (!Number.isFinite(total)) return Infinity;
+    }
+    return total;
+  }
+  function* combinations(arr, k) {
+    if (k === 0) {
+      yield { subset: [], rest: arr.slice() };
+      return;
+    }
+    if (k > arr.length) return;
+    const idxs = Array.from({ length: k }, (_, i) => i);
+    for (; ; ) {
+      const subset = idxs.map((i) => arr[i]);
+      const chosen = new Set(idxs);
+      const rest = arr.filter((_, i) => !chosen.has(i));
+      yield { subset, rest };
+      let p = k - 1;
+      while (p >= 0 && idxs[p] === arr.length - k + p) p--;
+      if (p < 0) break;
+      idxs[p]++;
+      for (let q = p + 1; q < k; q++) idxs[q] = idxs[q - 1] + 1;
+    }
+  }
+  function worldSetup(view) {
+    const remaining = remainingBySeat(view);
+    const unknown = unknownCards(view);
+    if (view.hand.length !== remaining[view.seat]) {
+      throw new Error(
+        `Mao do heroi (${view.hand.length}) inconsistente com a contagem de jogadas (${remaining[view.seat]}).`
+      );
+    }
+    const need = remaining.reduce(
+      (sum, r, s) => sum + (s === view.seat ? 0 : r),
+      0
+    );
+    if (need > unknown.length) {
+      throw new Error(
+        `Cartas desconhecidas insuficientes: precisa de ${need}, ha ${unknown.length}.`
+      );
+    }
+    return { remaining, unknown };
+  }
+  function planWorlds(view, opts = {}) {
+    const mode = opts.mode ?? "montecarlo";
+    const exactCap = opts.exactCap ?? 2e4;
+    const { remaining, unknown } = worldSetup(view);
+    const total = countWorlds(remaining, view.seat, unknown.length);
+    if (mode === "exact") {
+      if (total > exactCap) {
+        throw new Error(
+          `Enumeracao exata excede o limite (${total} > ${exactCap}). Aumente exactCap ou use Monte Carlo.`
+        );
+      }
+      return { method: "exact", total };
+    }
+    if (mode === "auto" && total <= exactCap) return { method: "exact", total };
+    return { method: "montecarlo", total };
+  }
+  function* iterWorlds(view, opts = {}) {
+    const { remaining, unknown } = worldSetup(view);
+    const { method } = planWorlds(view, opts);
+    const seed = opts.seed ?? 1;
+    if (method === "exact") {
+      const seats = [];
+      for (let s = 0; s < view.rules.numPlayers; s++) {
+        if (s !== view.seat) seats.push(s);
+      }
+      const dealt = Array.from(
+        { length: view.rules.numPlayers },
+        () => []
+      );
+      yield* enumerate(view, seats, 0, unknown, remaining, dealt);
+      return;
+    }
+    const samples = opts.samples ?? 2e3;
+    for (let i = 0; i < samples; i++) {
+      const rng = seededRng3(seed + i);
+      const shuffled = shuffle(unknown, rng);
+      const dealt = dealUnknown(view, remaining, shuffled);
+      yield buildWorldHands(view, dealt);
+    }
+  }
+  function* enumerate(view, seats, si, pool, remaining, dealt) {
+    if (si === seats.length) {
+      yield buildWorldHands(view, dealt);
+      return;
+    }
+    const seat = seats[si];
+    for (const combo of combinations(pool, remaining[seat])) {
+      dealt[seat] = combo.subset;
+      yield* enumerate(view, seats, si + 1, combo.rest, remaining, dealt);
+    }
+  }
+
+  // src/analysis/doubleDummy.ts
+  function ddValue(ctx, hands, results, plays, leader) {
+    const { n, rules, vira, teamOfSeat, heroTeam } = ctx;
+    if (plays.length === n) {
+      const result = resolveVaza(plays, vira, teamOfSeat, rules);
+      const newResults = [...results, result];
+      const decision = decideHand(newResults, rules);
+      if (decision === "cancel") return 0;
+      if (decision !== "continue") return decision === heroTeam ? 1 : -1;
+      const newLeader = result.winningSeat ?? leader;
+      return ddValue(ctx, hands, newResults, [], newLeader);
+    }
+    const seat = (leader + plays.length) % n;
+    const hand = hands[seat];
+    const maximizing = teamOfSeat[seat] === heroTeam;
+    let best = maximizing ? -Infinity : Infinity;
+    const seenStrength = /* @__PURE__ */ new Set();
+    for (let i = 0; i < hand.length; i++) {
+      const card = hand[i];
+      const st = cardStrength(card, vira, rules);
+      if (seenStrength.has(st)) continue;
+      seenStrength.add(st);
+      const newHands = hands.map(
+        (h, idx) => idx === seat ? h.filter((_, j) => j !== i) : h
+      );
+      const val = ddValue(ctx, newHands, results, [...plays, { seat, card }], leader);
+      if (maximizing) {
+        if (val > best) best = val;
+        if (best === 1) break;
+      } else {
+        if (val < best) best = val;
+        if (best === -1) break;
+      }
+    }
+    return best;
+  }
+  function currentLeader(view) {
+    return view.currentVazaPlays.length > 0 ? view.currentVazaPlays[0].seat : view.seat;
+  }
+  function analyzeDoubleDummy(view, opts = {}) {
+    const rules = view.rules;
+    const n = rules.numPlayers;
+    const leader = currentLeader(view);
+    const acting = (leader + view.currentVazaPlays.length) % n;
+    if (acting !== view.seat) {
+      throw new Error(
+        `analyzeDoubleDummy: nao e a vez do heroi (assento a jogar = ${acting}, heroi = ${view.seat}).`
+      );
+    }
+    const { method } = planWorlds(view, opts);
+    const ctx = {
+      rules,
+      vira: view.vira,
+      teamOfSeat: view.teamOfSeat,
+      heroTeam: view.team,
+      n
+    };
+    const candidates = [];
+    const seenStrength = /* @__PURE__ */ new Set();
+    for (const card of view.hand) {
+      const st = cardStrength(card, view.vira, rules);
+      if (seenStrength.has(st)) continue;
+      seenStrength.add(st);
+      candidates.push(card);
+    }
+    const acc = candidates.map(() => ({ win: 0, tie: 0, loss: 0 }));
+    let samples = 0;
+    for (const hands of iterWorlds(view, opts)) {
+      samples++;
+      for (let ci = 0; ci < candidates.length; ci++) {
+        const card = candidates[ci];
+        const heroHand = hands[view.seat];
+        const cardIdx = heroHand.findIndex((c) => cardsEqual(c, card));
+        const newHands = hands.map(
+          (h, idx) => idx === view.seat ? h.filter((_, j) => j !== cardIdx) : h
+        );
+        const plays = [
+          ...view.currentVazaPlays.map((p) => ({ ...p })),
+          { seat: view.seat, card }
+        ];
+        const v = ddValue(
+          ctx,
+          newHands,
+          view.completedVazaResults.slice(),
+          plays,
+          leader
+        );
+        if (v > 0) acc[ci].win++;
+        else if (v < 0) acc[ci].loss++;
+        else acc[ci].tie++;
+      }
+    }
+    const denom = samples || 1;
+    const cards = candidates.map((card, ci) => {
+      const a = acc[ci];
+      const winProb = a.win / denom;
+      const lossProb = a.loss / denom;
+      return {
+        card,
+        winProb,
+        tieProb: a.tie / denom,
+        lossProb,
+        ev: winProb - lossProb
+      };
+    });
+    cards.sort((x, y) => y.ev - x.ev || y.winProb - x.winProb);
+    const best = cards[0];
+    return {
+      winProb: best.winProb,
+      tieProb: best.tieProb,
+      lossProb: best.lossProb,
+      bestCard: best.card,
+      cards,
+      samples,
+      method
+    };
+  }
+
+  // src/analysis/rollout.ts
+  var RandomPlayer = class {
+    constructor(rng) {
+      this.rng = rng;
+    }
+    name = "Random";
+    async chooseAction(view) {
+      const hand = view.hand;
+      const idx = Math.floor(this.rng() * hand.length);
+      return { type: "play", card: hand[Math.min(idx, hand.length - 1)] };
+    }
+    async respondToRaise() {
+      return "accept";
+    }
+    async decideMaoDeOnze() {
+      return "play";
+    }
+  };
+  function makePolicyPlayer(policy, rng) {
+    if (policy === "random") return new RandomPlayer(rng);
+    return getPersonality(policy).create(policy, rng);
+  }
+  async function playoutWorld(view, hands, player) {
+    const rules = view.rules;
+    const n = rules.numPlayers;
+    const vira = view.vira;
+    const manilha = manilhaRank(vira, rules);
+    const teamOfSeat = view.teamOfSeat;
+    const completedPlays = view.completedVazaPlays.map((v) => v.slice());
+    const completedResults = view.completedVazaResults.slice();
+    const startVaza = completedPlays.length;
+    let leader = view.currentVazaPlays.length > 0 ? view.currentVazaPlays[0].seat : view.seat;
+    for (let v = startVaza; v < rules.cardsPerPlayer; v++) {
+      const plays = v === startVaza ? view.currentVazaPlays.map((p) => ({ ...p })) : [];
+      for (let k = plays.length; k < n; k++) {
+        const seat = (leader + k) % n;
+        const hand = hands[seat];
+        const subView = {
+          seat,
+          team: teamOfSeat[seat],
+          hand,
+          vira,
+          manilha,
+          rules,
+          scores: view.scores,
+          teamOfSeat,
+          completedVazaPlays: completedPlays,
+          completedVazaResults: completedResults,
+          currentVazaPlays: plays,
+          handValue: rules.baseValue,
+          blind: false
+        };
+        const action = await player.chooseAction(subView, false);
+        let idx = -1;
+        if (action.type === "play") {
+          idx = hand.findIndex((c) => cardsEqual(c, action.card));
+        }
+        if (idx < 0) idx = 0;
+        const card = hand[idx];
+        hand.splice(idx, 1);
+        plays.push({ seat, card });
+      }
+      const result = resolveVaza(plays, vira, teamOfSeat, rules);
+      completedResults.push(result);
+      completedPlays.push(plays);
+      const decision = decideHand(completedResults, rules);
+      if (decision === "cancel") return null;
+      if (decision !== "continue") return decision;
+      if (result.winningSeat !== null) leader = result.winningSeat;
+    }
+    return null;
+  }
+
+  // src/analysis/singleDummy.ts
+  function currentLeader2(view) {
+    return view.currentVazaPlays.length > 0 ? view.currentVazaPlays[0].seat : view.seat;
+  }
+  async function analyzeSingleDummy(view, opts = {}) {
+    const rules = view.rules;
+    const n = rules.numPlayers;
+    const leader = currentLeader2(view);
+    const acting = (leader + view.currentVazaPlays.length) % n;
+    if (acting !== view.seat) {
+      throw new Error(
+        `analyzeSingleDummy: nao e a vez do heroi (assento a jogar = ${acting}, heroi = ${view.seat}).`
+      );
+    }
+    const policy = opts.policy ?? "inocente";
+    const { method } = planWorlds(view, opts);
+    const playerRng = seededRng3((opts.seed ?? 1) + 7);
+    const player = makePolicyPlayer(policy, playerRng);
+    const heroTeam = view.team;
+    const candidates = [];
+    const seenStrength = /* @__PURE__ */ new Set();
+    for (const card of view.hand) {
+      const st = cardStrength(card, view.vira, rules);
+      if (seenStrength.has(st)) continue;
+      seenStrength.add(st);
+      candidates.push(card);
+    }
+    const acc = candidates.map(() => ({ win: 0, tie: 0, loss: 0 }));
+    let samples = 0;
+    for (const hands of iterWorlds(view, opts)) {
+      samples++;
+      for (let ci = 0; ci < candidates.length; ci++) {
+        const card = candidates[ci];
+        const heroHand = hands[view.seat];
+        const cardIdx = heroHand.findIndex((c) => cardsEqual(c, card));
+        const worldHands = hands.map(
+          (h, idx) => idx === view.seat ? h.filter((_, j) => j !== cardIdx) : h.slice()
+        );
+        const syntheticPlays = [
+          ...view.currentVazaPlays.map((p) => ({ ...p })),
+          { seat: view.seat, card }
+        ];
+        const syntheticView = {
+          ...view,
+          currentVazaPlays: syntheticPlays
+        };
+        const winner = await playoutWorld(syntheticView, worldHands, player);
+        if (winner === null) acc[ci].tie++;
+        else if (winner === heroTeam) acc[ci].win++;
+        else acc[ci].loss++;
+      }
+    }
+    const denom = samples || 1;
+    const cards = candidates.map((card, ci) => {
+      const a = acc[ci];
+      const winProb = a.win / denom;
+      const lossProb = a.loss / denom;
+      return {
+        card,
+        winProb,
+        tieProb: a.tie / denom,
+        lossProb,
+        ev: winProb - lossProb
+      };
+    });
+    cards.sort((x, y) => y.ev - x.ev || y.winProb - x.winProb);
+    const best = cards[0];
+    return {
+      winProb: best.winProb,
+      tieProb: best.tieProb,
+      lossProb: best.lossProb,
+      bestCard: best.card,
+      cards,
+      samples,
+      method,
+      policy
+    };
+  }
+
+  // src/analysis/winEstimator.ts
+  async function estimateWin(view, opts = {}) {
+    const policy = opts.policy ?? "inocente";
+    const { method } = planWorlds(view, opts);
+    const heroTeam = view.team;
+    const playerRng = seededRng3((opts.seed ?? 1) + 7);
+    const player = makePolicyPlayer(policy, playerRng);
+    let win = 0;
+    let tie = 0;
+    let loss = 0;
+    let n = 0;
+    for (const hands of iterWorlds(view, opts)) {
+      const winner = await playoutWorld(view, hands, player);
+      if (winner === null) tie++;
+      else if (winner === heroTeam) win++;
+      else loss++;
+      n++;
+    }
+    const denom = n || 1;
+    return {
+      winProb: win / denom,
+      tieProb: tie / denom,
+      lossProb: loss / denom,
+      samples: n,
+      method,
+      policy
+    };
+  }
+  async function comparePolicies(view, policies, opts = {}) {
+    const out = {};
+    for (const policy of policies) {
+      out[policy] = await estimateWin(view, { ...opts, policy });
+    }
+    return out;
+  }
+
+  // src/analysis/calcApi.ts
+  var CALC_POLICIES = [
+    "random",
+    "inocente",
+    "melhorada_1",
+    "melhorada_2",
+    "melhorada_3",
+    "melhorada_4",
+    "melhorada_5"
+  ];
+  var RULES = TRUCO_PAULISTA;
+  function alternatingTeams(n) {
+    return Array.from({ length: n }, (_, s) => s % 2);
+  }
+  function buildPlays(scenario, teamOfSeat) {
+    const n = RULES.numPlayers;
+    let leader = scenario.maoSeat;
+    const completedVazaPlays = [];
+    const completedVazaResults = [];
+    for (const cards of scenario.completedVazas) {
+      const plays = cards.map((card, k) => ({
+        seat: (leader + k) % n,
+        card
+      }));
+      const result = resolveVaza(plays, scenario.vira, teamOfSeat, RULES);
+      completedVazaPlays.push(plays);
+      completedVazaResults.push(result);
+      leader = result.winningSeat ?? leader;
+    }
+    const currentVazaPlays = scenario.currentVaza.map((card, k) => ({
+      seat: (leader + k) % n,
+      card
+    }));
+    return {
+      completedVazaPlays,
+      completedVazaResults,
+      currentVazaPlays,
+      currentLeader: leader
+    };
+  }
+  function validate(scenario) {
+    const n = RULES.numPlayers;
+    const cpp = RULES.cardsPerPlayer;
+    if (scenario.seat < 0 || scenario.seat >= n) {
+      throw new Error(`Assento do heroi invalido: ${scenario.seat} (esperado 0..${n - 1}).`);
+    }
+    if (scenario.maoSeat < 0 || scenario.maoSeat >= n) {
+      throw new Error(`Assento da "mao" invalido: ${scenario.maoSeat} (esperado 0..${n - 1}).`);
+    }
+    if (scenario.completedVazas.length > cpp) {
+      throw new Error(`Vazas completas demais: ${scenario.completedVazas.length} (maximo ${cpp}).`);
+    }
+    scenario.completedVazas.forEach((cards, i) => {
+      if (cards.length !== n) {
+        throw new Error(`Vaza ${i + 1} incompleta: ${cards.length} cartas (precisa de ${n}).`);
+      }
+    });
+    if (scenario.currentVaza.length >= n) {
+      throw new Error(`Vaza atual cheia (${scenario.currentVaza.length}); ela ja estaria completa.`);
+    }
+    const all = [
+      scenario.vira,
+      ...scenario.hand,
+      ...scenario.completedVazas.flat(),
+      ...scenario.currentVaza
+    ];
+    for (let i = 0; i < all.length; i++) {
+      for (let j = i + 1; j < all.length; j++) {
+        if (cardsEqual(all[i], all[j])) {
+          throw new Error(`Carta repetida no cenario: ${cardToString(all[i])}.`);
+        }
+      }
+    }
+  }
+  async function calcScenario(scenario, opts = {}) {
+    validate(scenario);
+    const n = RULES.numPlayers;
+    const teamOfSeat = alternatingTeams(n);
+    const { completedVazaPlays, completedVazaResults, currentVazaPlays, currentLeader: currentLeader3 } = buildPlays(scenario, teamOfSeat);
+    const view = {
+      seat: scenario.seat,
+      team: teamOfSeat[scenario.seat],
+      hand: scenario.hand,
+      vira: scenario.vira,
+      manilha: manilhaRank(scenario.vira, RULES),
+      rules: RULES,
+      scores: new Array(RULES.numTeams).fill(0),
+      teamOfSeat,
+      completedVazaPlays,
+      completedVazaResults,
+      currentVazaPlays,
+      handValue: RULES.baseValue,
+      blind: false
+    };
+    const acting = (currentLeader3 + currentVazaPlays.length) % n;
+    const heroPlayedInCurrent = currentVazaPlays.some((p) => p.seat === scenario.seat);
+    const heroPlayed = completedVazaPlays.length + (heroPlayedInCurrent ? 1 : 0);
+    const expectedHand = RULES.cardsPerPlayer - heroPlayed;
+    if (scenario.hand.length !== expectedHand) {
+      throw new Error(
+        `Mao do heroi tem ${scenario.hand.length} carta(s), mas o esperado e ${expectedHand} (${RULES.cardsPerPlayer} - ${heroPlayed} ja jogada(s) pelo heroi).`
+      );
+    }
+    const wopts = { samples: opts.samples ?? 3e3, seed: opts.seed ?? 42, mode: "auto" };
+    const policies = await comparePolicies(view, CALC_POLICIES, wopts);
+    const heroToPlay = acting === scenario.seat;
+    let doubleDummy = null;
+    let singleDummy = null;
+    if (heroToPlay) {
+      doubleDummy = analyzeDoubleDummy(view, wopts);
+      singleDummy = await analyzeSingleDummy(view, { ...wopts, policy: "melhorada_5" });
+    }
+    return {
+      manilha: view.manilha,
+      acting,
+      heroToPlay,
+      completedResults: completedVazaResults,
+      policies,
+      doubleDummy,
+      singleDummy
+    };
   }
   return __toCommonJS(index_exports);
 })();

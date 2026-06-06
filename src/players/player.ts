@@ -89,7 +89,8 @@ export interface MaoDeOnzeContext {
 /** Acao de um jogador na sua vez: jogar uma carta ou pedir/aumentar o truco. */
 export type Action =
   | { type: "play"; card: Card }
-  | { type: "raise" };
+  | { type: "raise" }
+  | { type: "fold" };
 
 /** Resposta a um pedido de truco/aumento. */
 export type RaiseResponse = "accept" | "run" | "raise";
