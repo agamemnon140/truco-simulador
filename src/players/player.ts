@@ -13,6 +13,7 @@
 import { RuleSet } from "../core/rules.js";
 import { Play, VazaResult } from "../core/vaza.js";
 import { Card, Rank, Seat, TeamId } from "../core/types.js";
+import { PartnerSignals } from "./consult.js";
 
 /** Visao do estado que um jogador recebe para decidir. */
 export interface PlayerView {
@@ -46,6 +47,12 @@ export interface PlayerView {
    * o jogador escolhe "as cegas". Truco fica indisponivel.
    */
   blind: boolean;
+  /**
+   * "Comunicacao minima": sinais VERDADEIROS do parceiro (calculados da mao real
+   * dele). Presente so quando ha parceiro (2v2) e nao e mao fechada. Os bots so
+   * devem usar quando estao incertos da decisao.
+   */
+  partnerSignals?: PartnerSignals;
 }
 
 /** Decisao da equipe na "mao de onze" (uma equipe com pointsToWin-1). */

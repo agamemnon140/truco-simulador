@@ -10,6 +10,7 @@ import melhorada2Json from "../genomes/melhorada_2.json";
 import melhorada3Json from "../genomes/melhorada_3.json";
 import melhorada4Json from "../genomes/melhorada_4.json";
 import melhorada5Json from "../genomes/melhorada_5.json";
+import melhorada6Json from "../genomes/melhorada_6.json";
 import { Rng } from "../core/deck.js";
 import { BotPlayer } from "./bot.js";
 import { EvolvedBotPlayer } from "./evolvedBot.js";
@@ -23,7 +24,8 @@ export type PersonalityId =
   | "melhorada_2"
   | "melhorada_3"
   | "melhorada_4"
-  | "melhorada_5";
+  | "melhorada_5"
+  | "melhorada_6";
 
 export interface Personality {
   id: PersonalityId;
@@ -38,6 +40,7 @@ const melhorada2Genome = parseGenome(melhorada2Json);
 const melhorada3Genome = parseGenome(melhorada3Json);
 const melhorada4Genome = parseGenome(melhorada4Json);
 const melhorada5Genome = parseGenome(melhorada5Json);
+const melhorada6Genome = parseGenome(melhorada6Json);
 
 export const PERSONALITIES: Personality[] = [
   {
@@ -80,6 +83,13 @@ export const PERSONALITIES: Personality[] = [
     description: "Fitness ponderado (ultima domina) + piso 50%. Ganha de TODAS, inclusive m4 (~52%).",
     create: (name, rng, onDecision) =>
       new EvolvedBotPlayer(name, melhorada5Genome, rng, onDecision),
+  },
+  {
+    id: "melhorada_6",
+    label: "Melhorada 6",
+    description: "Comunicacao minima (sinais do parceiro quando incerta) + intuicoes GTO de blefe.",
+    create: (name, rng, onDecision) =>
+      new EvolvedBotPlayer(name, melhorada6Genome, rng, onDecision),
   },
 ];
 

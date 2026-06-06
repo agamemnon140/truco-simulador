@@ -22,7 +22,7 @@ import {
   N_BUCKETS,
   THRESH_PER_VAR,
 } from "./buckets.js";
-import { BET_FEATURE_COUNT, CARD_FEATURE_COUNT } from "./features.js";
+import { BET_FEATURE_COUNT, CARD_FEATURE_COUNT, GTO_FEATURE_COUNT } from "./features.js";
 
 export interface Genome {
   /** Pesos lineares do cardScore (length = CARD_FEATURE_COUNT). */
@@ -173,9 +173,15 @@ export function parseGenome(obj: unknown): Genome {
   if (!okArr(g.cardWeights, CARD_FEATURE_COUNT)) {
     throw new Error(`cardWeights invalido (esperado ${CARD_FEATURE_COUNT} numeros).`);
   }
-  if (!okArr(g.betWeights, BET_FEATURE_COUNT)) {
-    throw new Error(`betWeights invalido (esperado ${BET_FEATURE_COUNT} numeros).`);
-  }
+  const cardWeights = g.cardWeights;
+  // MIGRACAO: betWeights antigo (sem as features GTO) e aceito e completado com
+  // ZEROS nas features novas -> comportamento identico nelas.
+  const OLD_BET = BET_FEATURE_COUNT - GTO_FEATURE_COUNT;
+  let betWeights: number[];
+  if (okArr(g.betWeights, BET_FEATURE_COUNT)) betWeights = g.betWeights;
+  else if (okArr(g.betWeights, OLD_BET))
+    betWeights = [...g.betWeights, ...new Array<number>(GTO_FEATURE_COUNT).fill(0)];
+  else throw new Error(`betWeights invalido (esperado ${OLD_BET} ou ${BET_FEATURE_COUNT} numeros).`);
   for (const k of ["thrCall", "thrAccept", "thrRaise", "pBluff", "playTemp"] as const) {
     if (typeof g[k] !== "number") throw new Error(`Campo ${k} ausente/invalido no genoma.`);
   }
@@ -183,8 +189,8 @@ export function parseGenome(obj: unknown): Genome {
   const bucket = (a: unknown, n: number, fill: number[]): number[] =>
     okArr(a, n) ? a : fill;
   return {
-    cardWeights: g.cardWeights,
-    betWeights: g.betWeights,
+    cardWeights,
+    betWeights,
     thrCall: g.thrCall!,
     thrAccept: g.thrAccept!,
     thrRaise: g.thrRaise!,

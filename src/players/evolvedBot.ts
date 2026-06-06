@@ -35,6 +35,13 @@ function sigmoid(x: number): number {
   return 1 / (1 + Math.exp(-x));
 }
 
+// --- "Comunicacao minima" (protocolo FIXO, igual p/ todas as geracoes) ---
+// So influencia quando a decisao esta INCERTA (margem pequena).
+const BET_MARGIN = 0.6; // |S - limiar| abaixo disto = incerto na aposta
+const BET_NUDGE = 0.6; // ajuste de S por nivel do conselho do parceiro (adv-1 em {-1,0,1})
+const CARD_MARGIN = 0.4; // top1-top2 do cardScore abaixo disto = incerto na carta
+const CARD_NUDGE = 0.6; // ajuste por canWin: (1-canWin) * forca normalizada
+
 export class EvolvedBotPlayer implements Player {
   constructor(
     readonly name: string,
@@ -42,7 +49,14 @@ export class EvolvedBotPlayer implements Player {
     private readonly rng: Rng = Math.random,
     /** Opcional: recebe a explicacao de cada decisao (para o modo "explicar"). */
     private readonly onDecision?: (info: DecisionInfo) => void,
+    /** Se true, IGNORA os sinais do parceiro (desliga a comunicacao) — p/ ablacao. */
+    private readonly ignoreSignals = false,
   ) {}
+
+  /** Sinais do parceiro (undefined se a comunicacao esta desligada). */
+  private signals(view: PlayerView): PlayerView["partnerSignals"] {
+    return this.ignoreSignals ? undefined : view.partnerSignals;
+  }
 
   /** Score S da situacao para decisoes de aposta (linear + faixas). */
   private situationScore(view: PlayerView): number {
@@ -53,8 +67,14 @@ export class EvolvedBotPlayer implements Player {
     // Decisao de pedir truco (nunca em mao fechada/as cegas).
     if (canRaise && !view.blind) {
       const s = this.situationScore(view);
+      let propose = s > this.genome.thrCall;
+      // Comunicacao: so quando incerto, ajusta pelo conselho de truco do parceiro.
+      const ps = this.signals(view);
+      if (ps && Math.abs(s - this.genome.thrCall) < BET_MARGIN) {
+        propose = s + BET_NUDGE * (ps.trucoAdvice - 1) > this.genome.thrCall;
+      }
       const bluff = this.rng() < sigmoid(this.genome.pBluff);
-      if (s > this.genome.thrCall || bluff) {
+      if (propose || bluff) {
         this.onDecision?.({
           seat: view.seat,
           name: this.name,
@@ -92,6 +112,21 @@ export class EvolvedBotPlayer implements Player {
     const pre = precompute(view);
     const scores = hand.map((c) => cardScore(this.genome, view, c, pre));
 
+    // Comunicacao: se a escolha esta apertada (top1-top2 pequeno) e o parceiro
+    // sinaliza, ajusta — se ele "faz a vaza" (canWin alto), guarda a forte (joga
+    // baixa); se nao, cobre com a forte.
+    const ps = this.signals(view);
+    if (ps) {
+      const sorted = [...scores].sort((a, b) => b - a);
+      if ((sorted[0] ?? 0) - (sorted[1] ?? 0) < CARD_MARGIN) {
+        const max = view.rules.rankOrder.length + view.rules.manilhaSuitOrder.length - 1;
+        for (let i = 0; i < scores.length; i++) {
+          const strNorm = cardStrength(hand[i]!, view.vira, view.rules) / max;
+          scores[i]! += CARD_NUDGE * (1 - ps.canWin) * strNorm;
+        }
+      }
+    }
+
     const temp = Math.max(0, this.genome.playTemp);
     if (temp <= 1e-6) {
       // Argmax deterministico.
@@ -120,8 +155,13 @@ export class EvolvedBotPlayer implements Player {
     const s = this.situationScore(view);
     const bluff = this.rng() < sigmoid(this.genome.pBluff) * 0.5;
     if (canCounter && (s > this.genome.thrRaise || bluff)) return "raise";
-    if (s > this.genome.thrAccept) return "accept";
-    return "run";
+    // Comunicacao: na fronteira aceitar/correr, ajusta pelo conselho do parceiro.
+    let accept = s > this.genome.thrAccept;
+    const ps = this.signals(view);
+    if (ps && Math.abs(s - this.genome.thrAccept) < BET_MARGIN) {
+      accept = s + BET_NUDGE * (ps.trucoAdvice - 1) > this.genome.thrAccept;
+    }
+    return accept ? "accept" : "run";
   }
 
   async decideMaoDeOnze(

@@ -18,10 +18,11 @@ import {
   nextLevel,
 } from "./betting.js";
 import { Rng, deal } from "./deck.js";
-import { manilhaRank } from "./ranking.js";
+import { cardStrength, manilhaRank } from "./ranking.js";
 import { RuleSet } from "./rules.js";
 import { Card, Seat, TeamId, cardsEqual } from "./types.js";
 import { Play, VazaResult, resolveVaza } from "./vaza.js";
+import { partnerSignalsOf } from "../players/consult.js";
 import {
   MaoDeOnzeContext,
   MaoDeOnzeDecision,
@@ -185,21 +186,46 @@ export async function playHand(cfg: HandConfig): Promise<HandResult> {
     hands: hands.map((h) => h.slice()),
   });
 
-  const buildView = (seat: Seat, currentVazaPlays: Play[]): PlayerView => ({
-    seat,
-    team: teamOfSeat[seat]!,
-    hand: hands[seat]!,
-    vira,
-    manilha,
-    rules,
-    scores,
-    teamOfSeat,
-    completedVazaPlays: allVazaPlays,
-    completedVazaResults: vazaResults,
-    currentVazaPlays,
-    handValue: valueNow(),
-    blind,
-  });
+  /** Parceiro de equipe (primeiro assento do mesmo time != seat); -1 se nenhum. */
+  const partnerSeat = (seat: Seat): Seat => {
+    for (let k = 1; k < n; k++) {
+      const s = (seat + k) % n;
+      if (teamOfSeat[s] === teamOfSeat[seat]) return s;
+    }
+    return -1;
+  };
+
+  const buildView = (seat: Seat, currentVazaPlays: Play[]): PlayerView => {
+    // Sinais do parceiro ("comunicacao minima") — so em 2v2 e fora de mao fechada.
+    let partnerSignals: PlayerView["partnerSignals"];
+    const pSeat = partnerSeat(seat);
+    if (!blind && pSeat >= 0) {
+      let oppBest = -1;
+      for (const p of currentVazaPlays) {
+        if (teamOfSeat[p.seat] !== teamOfSeat[seat]) {
+          const s = cardStrength(p.card, vira, rules);
+          if (s > oppBest) oppBest = s;
+        }
+      }
+      partnerSignals = partnerSignalsOf(hands[pSeat]!, vira, rules, oppBest);
+    }
+    return {
+      seat,
+      team: teamOfSeat[seat]!,
+      hand: hands[seat]!,
+      vira,
+      manilha,
+      rules,
+      scores,
+      teamOfSeat,
+      completedVazaPlays: allVazaPlays,
+      completedVazaResults: vazaResults,
+      currentVazaPlays,
+      handValue: valueNow(),
+      blind,
+      partnerSignals,
+    };
+  };
 
   // --- Mao de onze single: a equipe de 11 decide jogar ou correr ---
   if (onzeSingle) {

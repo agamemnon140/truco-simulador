@@ -15,8 +15,10 @@
     "train:rr": "tsx src/training/train-rr.ts",
     "train:rr4": "tsx src/training/train-rr4.ts",
     "train:rr5": "tsx src/training/train-rr5.ts",
+    "train:rr6": "tsx src/training/train-rr6.ts",
     "evaluate": "tsx src/training/evaluate.ts",
     "solve": "tsx src/equilibrium/solve.ts",
+    "estimate": "tsx src/analysis/winEstimatorDemo.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

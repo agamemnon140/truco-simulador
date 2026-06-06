@@ -19,8 +19,11 @@ import { PlayerView } from "./player.js";
 export const CONTEXT_FEATURE_COUNT = 12;
 export const CARD_OWN_FEATURE_COUNT = 8;
 export const HAND_STRENGTH_FEATURE_COUNT = 6;
+/** Features de intuicao GTO (apendice em betFeatures): bluffability + aFrenteTarde. */
+export const GTO_FEATURE_COUNT = 2;
 export const CARD_FEATURE_COUNT = CARD_OWN_FEATURE_COUNT + CONTEXT_FEATURE_COUNT; // 20
-export const BET_FEATURE_COUNT = HAND_STRENGTH_FEATURE_COUNT + CONTEXT_FEATURE_COUNT; // 18
+export const BET_FEATURE_COUNT =
+  HAND_STRENGTH_FEATURE_COUNT + CONTEXT_FEATURE_COUNT + GTO_FEATURE_COUNT; // 20
 
 /** Nomes legiveis das features de contexto (mesma ordem de contextFeatures). */
 export const CONTEXT_FEATURE_NAMES: readonly string[] = [
@@ -66,10 +69,14 @@ export const CARD_FEATURE_NAMES: readonly string[] = [
   ...CONTEXT_FEATURE_NAMES,
 ];
 
-/** Nomes do vetor completo de betFeatures (forca + contexto). */
+/** Nomes das features de intuicao GTO (apendice). */
+export const GTO_FEATURE_NAMES: readonly string[] = ["bluffability", "aFrenteTarde"];
+
+/** Nomes do vetor completo de betFeatures (forca + contexto + GTO). */
 export const BET_FEATURE_NAMES: readonly string[] = [
   ...HAND_STRENGTH_FEATURE_NAMES,
   ...CONTEXT_FEATURE_NAMES,
+  ...GTO_FEATURE_NAMES,
 ];
 
 /** Forca maxima possivel de uma carta nesta variante (manilha mais forte). */
@@ -290,5 +297,15 @@ export function betFeatures(view: PlayerView, pre: Precomputed): number[] {
     strong / cpp, // 4: nº de cartas fortes
     hand.length / cpp, // 5: cartas restantes
   ];
-  return [...strength, ...pre.context];
+
+  // Features de intuicao GTO (apendice): habilitam o blefe polarizado.
+  const results = view.completedVazaResults;
+  // bluffability: alto quando a mao e fraca (avg < 0.5) -> blefe.
+  const bluffability = Math.max(0, 0.5 - avg) * 2;
+  // aFrenteTarde: ganhou a 1a vaza E ja avancou -> semi-blefe quando a frente.
+  const wonFirst = results.length >= 1 && results[0]!.winningTeam === view.team ? 1 : 0;
+  const vazaNorm = cpp > 1 ? results.length / (cpp - 1) : 0;
+  const aFrenteTarde = wonFirst * Math.min(1, vazaNorm);
+
+  return [...strength, ...pre.context, bluffability, aFrenteTarde];
 }

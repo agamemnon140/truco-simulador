@@ -192,6 +192,21 @@ exponenciais `1,1,2,4,16` — a última domina) **menos** uma penalidade forte d
 A margem sobre a m4 é **estreita (~52%)** — sinal de que a fronteira da
 arquitetura linear/faixas está **saturando**.
 
+A `melhorada_6` adiciona duas ideias: **comunicação mínima** entre parceiros (as
+3 consultas do modo humano — `signal`/`canWin`/`trucoAdvice`, sinais
+**verdadeiros** — usadas por **todas** as gerações evoluídas, via um protocolo
+**fixo** no bot, **só quando a decisão está incerta**) e **features de intuição
+GTO** (blefe polarizado). A m6 **ganha de todas** em sementes novas (pior caso
+~55%, vs m4 ~62%, vs m5 ~66%). **Porém, a ablação é honesta**: o ganho vem de
+**mais evolução** (outra passada round-robin pior-caso, agora vs `{inocente,
+m1…m5}`), **não** das duas novidades — o protocolo de comunicação **fixo** chega
+a **custar ~1–3pp** (ele perturba uma política já boa) e as features GTO são
+**neutras** (~50% num duelo m6 × m6-sem-GTO). Lições: sinais **verdadeiros**
+deveriam ajudar (é o teto **TMECor** do CFR), mas para extrair valor é preciso
+**evoluir o uso do sinal** (limiar/pesos no genoma), não um ajuste fixo; e
+intuição **GTO ≠ exploração** contra bots exploráveis. (`npm run train:rr6`,
+avaliação `tsx src/training/evaluate-m6.ts`.)
+
 ## Equilíbrio (GTO) — resolver matematicamente (CFR)
 
 Toda a linha m1…m5 é **best-response** (melhor resposta a um pool) — daí a

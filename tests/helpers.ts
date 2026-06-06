@@ -29,6 +29,7 @@ export function makeView(opts: {
   completedVazaResults?: PlayerView["completedVazaResults"];
   handValue?: number;
   blind?: boolean;
+  partnerSignals?: PlayerView["partnerSignals"];
 }): PlayerView {
   const seat = opts.seat ?? 0;
   const teamOfSeat = [0, 1, 0, 1];
@@ -46,6 +47,7 @@ export function makeView(opts: {
     currentVazaPlays: opts.currentVazaPlays ?? [],
     handValue: opts.handValue ?? 1,
     blind: opts.blind ?? false,
+    partnerSignals: opts.partnerSignals,
   };
 }
 
