@@ -19,6 +19,7 @@ import { EvolvedBotPlayer } from "./evolvedBot.js";
 import { DecisionInfo } from "./explain.js";
 import { parseGenome } from "./genome.js";
 import { OpponentModel } from "./opponentModel.js";
+import { DEFAULT_MACO_STRENGTH, MacoPlayer, macoCheat } from "./macoPlayer.js";
 import { Player } from "./player.js";
 
 export type PersonalityId =
@@ -29,7 +30,8 @@ export type PersonalityId =
   | "melhorada_4"
   | "melhorada_5"
   | "melhorada_6"
-  | "melhorada_7";
+  | "melhorada_7"
+  | "maco";
 
 export interface Personality {
   id: PersonalityId;
@@ -108,6 +110,19 @@ export const PERSONALITIES: Personality[] = [
         onDecision,
         false,
         new OpponentModel(TRUCO_PAULISTA),
+      ),
+  },
+  {
+    id: "maco",
+    label: "Maço (trapaceiro)",
+    description: "Joga como a m6, mas TRAPACEIA: dá 'maço' no baralho, 4 cartas ao parceiro e 'mela' mãos ruins.",
+    create: (name, rng, onDecision) =>
+      new MacoPlayer(
+        name,
+        melhorada6Genome,
+        { cheat: macoCheat(DEFAULT_MACO_STRENGTH), rules: TRUCO_PAULISTA },
+        rng,
+        onDecision,
       ),
   },
 ];

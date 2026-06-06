@@ -221,6 +221,25 @@ oponente ~0. **Lição:** a saturação persiste — para a inferência pagar é
 e re-evoluir com esse sinal confiável. (`npm run train:rr7`, avaliação
 `tsx src/training/evaluate-m7.ts`.)
 
+### Maço (trapaça) — a dupla que rouba no baralho
+
+A personalidade **`maço`** joga como a m6, mas **trapaceia na distribuição** (técnica
+de quem dá as cartas, o "pé", que rotaciona → só ~½ das mãos da dupla):
+- **Maço**: enviesa as **manilhas** para o time, em escada **parceiro > pé >
+  adversário > honesto** (best-of-K), **imperfeito** (às vezes dá *backfire* e a
+  manilha vai pro rival). Força calibrável (`macoStrength`).
+- **4 cartas ao parceiro**: ele recebe 4 e fica com as **3 melhores**.
+- **Melar**: diante de uma mão fraca, **anula e redistribui** (orçamento por
+  partida; o motor limita os redeals).
+
+Diferente da comunicação (m6) e da inferência (m7), que saíram **neutras**, a
+**trapaça FUNCIONA**: na força `0.6` ela soma **+6 a +12pp** sobre o m6 honesto em
+todo o pool — e mesmo contra um oponente igual (o próprio m6) vence **~58%**
+(honesto = 50%). Mas é **batível** (o rival ainda leva ~42%), como calibramos —
+porque ela muda **as cartas de verdade**, não só a política (já saturada). O
+**motor honesto fica inalterado** sem trapaceiro. (`npm run calibrate:maco` para
+escolher a força, `npm run eval:maco` para medir o efeito.)
+
 ## Equilíbrio (GTO) — resolver matematicamente (CFR)
 
 Toda a linha m1…m5 é **best-response** (melhor resposta a um pool) — daí a

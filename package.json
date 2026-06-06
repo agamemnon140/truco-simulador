@@ -17,6 +17,8 @@
     "train:rr5": "tsx src/training/train-rr5.ts",
     "train:rr6": "tsx src/training/train-rr6.ts",
     "train:rr7": "tsx src/training/train-rr7.ts",
+    "calibrate:maco": "tsx src/training/calibrate-maco.ts",
+    "eval:maco": "tsx src/training/evaluate-maco.ts",
     "evaluate": "tsx src/training/evaluate.ts",
     "solve": "tsx src/equilibrium/solve.ts",
     "estimate": "tsx src/analysis/winEstimatorDemo.ts",

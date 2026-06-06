@@ -109,6 +109,23 @@ export interface Proposal {
   forfeitValue: number;
 }
 
+/**
+ * Perfil de TRAPACA do "pe" (quem distribui), aplicado pelo MOTOR na distribuicao.
+ * Tudo opcional e default-ausente -> jogo honesto inalterado.
+ */
+export interface CheatProfile {
+  /** Prob. [0,1] de o "maco" engatar em cada mao em que este jogador e o pe. */
+  macoStrength?: number;
+  /** Nº de distribuicoes candidatas avaliadas quando o maco engata. */
+  macoAttempts?: number;
+  /** Prob. [0,1] de BACKFIRE (escolhe a distribuicao PIOR para o time). */
+  macoBackfire?: number;
+  /** Pesos do objetivo de manilha por papel (parceiro > pe > adversario > 0). */
+  macoWeights?: { partner: number; dealer: number; opp: number };
+  /** Prob. [0,1] de dar 4 cartas ao parceiro (ele fica com as 3 melhores). */
+  extraCardProb?: number;
+}
+
 /** Interface implementada por humano, bot e futura UI. */
 export interface Player {
   /** Nome exibido. */
@@ -142,4 +159,14 @@ export interface Player {
    * bots que modelam os adversarios. `selfSeat` e o assento deste jogador.
    */
   observe?(event: GameEvent, selfSeat: Seat): void;
+
+  /** Opcional: perfil de trapaca exercido pelo MOTOR quando este jogador e o pe. */
+  cheat?: CheatProfile;
+
+  /**
+   * Opcional ("melar"): ao ver a propria mao, pede REDISTRIBUICAO (anula a mao).
+   * O proprio jogador controla seu orcamento por partida. O motor limita o nº de
+   * redeals por mao para evitar loop.
+   */
+  wantsRedeal?(hand: readonly Card[], vira: Card): boolean;
 }

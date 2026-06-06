@@ -17,8 +17,8 @@ import {
   isMaxed,
   nextLevel,
 } from "./betting.js";
-import { Rng, deal } from "./deck.js";
-import { cardStrength, manilhaRank } from "./ranking.js";
+import { Deal, Rng, deal } from "./deck.js";
+import { cardStrength, isManilha, manilhaRank } from "./ranking.js";
 import { RuleSet } from "./rules.js";
 import { Card, Seat, TeamId, cardsEqual } from "./types.js";
 import { Play, VazaResult, resolveVaza } from "./vaza.js";
@@ -150,8 +150,69 @@ function firstOpponentAfter(
 export async function playHand(cfg: HandConfig): Promise<HandResult> {
   const { rules, players, teamOfSeat, scores, firstSeat, observer } = cfg;
   const n = rules.numPlayers;
+  const rng: Rng = cfg.rng ?? Math.random;
 
-  const dealt = deal(n, rules.cardsPerPlayer, cfg.rng);
+  // --- Distribuicao, com possivel TRAPACA do "pe" (quem da as cartas) ---
+  const dealerSeat = ((firstSeat - 1 + n) % n) as Seat;
+  const dealerTeam = teamOfSeat[dealerSeat]!;
+  let partnerOfDealer = -1;
+  for (let k = 1; k < n; k++) {
+    const s = (dealerSeat + k) % n;
+    if (teamOfSeat[s] === dealerTeam) {
+      partnerOfDealer = s;
+      break;
+    }
+  }
+  const cheat = players[dealerSeat]?.cheat;
+
+  // "Maco": objetivo de MANILHA ponderado por papel (parceiro > pe > adversario).
+  const macoScore = (d: Deal): number => {
+    const w = cheat?.macoWeights ?? { partner: 3, dealer: 2, opp: 1 };
+    let sc = 0;
+    for (let seat = 0; seat < n; seat++) {
+      const m = d.hands[seat]!.filter((c) => isManilha(c, d.vira, rules)).length;
+      const weight =
+        seat === partnerOfDealer ? w.partner : teamOfSeat[seat] === dealerTeam ? w.dealer : w.opp;
+      sc += weight * m;
+    }
+    return sc;
+  };
+
+  const dealOnce = (): Deal => {
+    let d = deal(n, rules.cardsPerPlayer, cfg.rng);
+    // Maco: com prob. macoStrength, escolhe entre K candidatos (melhor; ou pior se backfire).
+    if (cheat?.macoStrength && rng() < cheat.macoStrength) {
+      const K = Math.max(2, cheat.macoAttempts ?? 4);
+      const cands: Deal[] = [d];
+      for (let k = 1; k < K; k++) cands.push(deal(n, rules.cardsPerPlayer, cfg.rng));
+      const backfire = rng() < (cheat.macoBackfire ?? 0.2);
+      d = cands.reduce((best, c) => {
+        const cmp = macoScore(c) - macoScore(best);
+        return (backfire ? cmp < 0 : cmp > 0) ? c : best;
+      });
+    }
+    // 4 cartas ao parceiro: ele fica com as 3 MELHORES de 4.
+    if (
+      cheat?.extraCardProb &&
+      partnerOfDealer >= 0 &&
+      d.rest.length > 0 &&
+      rng() < cheat.extraCardProb
+    ) {
+      const four = [...d.hands[partnerOfDealer]!, d.rest[0]!];
+      four.sort((a, b) => cardStrength(a, d.vira, rules) - cardStrength(b, d.vira, rules));
+      d.hands[partnerOfDealer] = four.slice(1); // descarta a mais fraca
+    }
+    return d;
+  };
+
+  let dealt = dealOnce();
+  // "Melar": se algum jogador reclama da propria mao, redistribui (com teto rigido).
+  const MAX_REDEALS = 2;
+  for (let r = 0; r < MAX_REDEALS; r++) {
+    const wants = players.some((p, seat) => p.wantsRedeal?.(dealt.hands[seat]!, dealt.vira) ?? false);
+    if (!wants) break;
+    dealt = dealOnce();
+  }
   const vira = dealt.vira;
   const manilha = manilhaRank(vira, rules);
   // Copia mutavel das maos por assento (cartas vao sendo removidas).
