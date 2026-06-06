@@ -267,7 +267,54 @@ var Truco = (() => {
   async function playHand(cfg) {
     const { rules, players, teamOfSeat, scores, firstSeat, observer } = cfg;
     const n = rules.numPlayers;
-    const dealt = deal(n, rules.cardsPerPlayer, cfg.rng);
+    const rng = cfg.rng ?? Math.random;
+    const dealerSeat = (firstSeat - 1 + n) % n;
+    const dealerTeam = teamOfSeat[dealerSeat];
+    let partnerOfDealer = -1;
+    for (let k = 1; k < n; k++) {
+      const s = (dealerSeat + k) % n;
+      if (teamOfSeat[s] === dealerTeam) {
+        partnerOfDealer = s;
+        break;
+      }
+    }
+    const cheat = players[dealerSeat]?.cheat;
+    const macoScore = (d) => {
+      const w = cheat?.macoWeights ?? { partner: 3, dealer: 2, opp: 1 };
+      let sc = 0;
+      for (let seat = 0; seat < n; seat++) {
+        const m = d.hands[seat].filter((c) => isManilha(c, d.vira, rules)).length;
+        const weight = seat === partnerOfDealer ? w.partner : teamOfSeat[seat] === dealerTeam ? w.dealer : w.opp;
+        sc += weight * m;
+      }
+      return sc;
+    };
+    const dealOnce = () => {
+      let d = deal(n, rules.cardsPerPlayer, cfg.rng);
+      if (cheat?.macoStrength && rng() < cheat.macoStrength) {
+        const K = Math.max(2, cheat.macoAttempts ?? 4);
+        const cands = [d];
+        for (let k = 1; k < K; k++) cands.push(deal(n, rules.cardsPerPlayer, cfg.rng));
+        const backfire = rng() < (cheat.macoBackfire ?? 0.2);
+        d = cands.reduce((best, c) => {
+          const cmp = macoScore(c) - macoScore(best);
+          return (backfire ? cmp < 0 : cmp > 0) ? c : best;
+        });
+      }
+      if (cheat?.extraCardProb && partnerOfDealer >= 0 && d.rest.length > 0 && rng() < cheat.extraCardProb) {
+        const four = [...d.hands[partnerOfDealer], d.rest[0]];
+        four.sort((a, b) => cardStrength(a, d.vira, rules) - cardStrength(b, d.vira, rules));
+        d.hands[partnerOfDealer] = four.slice(1);
+      }
+      return d;
+    };
+    let dealt = dealOnce();
+    const MAX_REDEALS = 2;
+    for (let r = 0; r < MAX_REDEALS; r++) {
+      const wants = players.some((p, seat) => p.wantsRedeal?.(dealt.hands[seat], dealt.vira) ?? false);
+      if (!wants) break;
+      dealt = dealOnce();
+    }
     const vira = dealt.vira;
     const manilha = manilhaRank(vira, rules);
     const hands = dealt.hands.map((h) => h.slice());
@@ -1887,6 +1934,58 @@ var Truco = (() => {
     }
   };
 
+  // src/players/macoPlayer.ts
+  var DEFAULT_MACO_STRENGTH = 0.6;
+  function macoCheat(macoStrength) {
+    return {
+      macoStrength,
+      macoAttempts: 4,
+      macoBackfire: 0.2,
+      macoWeights: { partner: 3, dealer: 2, opp: 1 },
+      extraCardProb: 0.3 * macoStrength
+    };
+  }
+  var MacoPlayer = class {
+    constructor(name, genome, opts, rng, onDecision) {
+      this.name = name;
+      this.inner = new EvolvedBotPlayer(name, genome, rng, onDecision);
+      this.cheat = opts.cheat;
+      this.rules = opts.rules;
+      this.melarBelow = opts.melarBelow ?? 0.25;
+      this.melarLeft = opts.melarBudget ?? 2;
+    }
+    cheat;
+    inner;
+    rules;
+    melarBelow;
+    melarLeft;
+    chooseAction(view, canRaise) {
+      return this.inner.chooseAction(view, canRaise);
+    }
+    respondToRaise(view, p, c) {
+      return this.inner.respondToRaise(view, p, c);
+    }
+    decideMaoDeOnze(view, ctx) {
+      return this.inner.decideMaoDeOnze(view, ctx);
+    }
+    observe(ev, seat) {
+      this.inner.observe?.(ev, seat);
+    }
+    /** "Melar": com orcamento, pede redistribuicao quando a mao e fraca. */
+    wantsRedeal(hand, vira) {
+      if (this.melarLeft <= 0 || hand.length === 0) return false;
+      const max = this.rules.rankOrder.length + this.rules.manilhaSuitOrder.length - 1;
+      let sum = 0;
+      for (const c of hand) sum += cardStrength(c, vira, this.rules);
+      const avg = sum / (max * hand.length);
+      if (avg < this.melarBelow) {
+        this.melarLeft--;
+        return true;
+      }
+      return false;
+    }
+  };
+
   // src/players/personalities.ts
   var melhorada1Genome = parseGenome(melhorada_1_default);
   var melhorada2Genome = parseGenome(melhorada_2_default);
@@ -1949,6 +2048,18 @@ var Truco = (() => {
         onDecision,
         false,
         new OpponentModel(TRUCO_PAULISTA)
+      )
+    },
+    {
+      id: "maco",
+      label: "Ma\xE7o (trapaceiro)",
+      description: "Joga como a m6, mas TRAPACEIA: d\xE1 'ma\xE7o' no baralho, 4 cartas ao parceiro e 'mela' m\xE3os ruins.",
+      create: (name, rng, onDecision) => new MacoPlayer(
+        name,
+        melhorada6Genome,
+        { cheat: macoCheat(DEFAULT_MACO_STRENGTH), rules: TRUCO_PAULISTA },
+        rng,
+        onDecision
       )
     }
   ];

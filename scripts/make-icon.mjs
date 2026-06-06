@@ -37,42 +37,82 @@ function chunk(type, data) {
   return Buffer.concat([len, body, crc]);
 }
 
+// Fonte bitmap 5x7 (só as letras de "TRUCO" + "A" do canto da carta).
+const FONT = {
+  T: ["11111", "00100", "00100", "00100", "00100", "00100", "00100"],
+  R: ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
+  U: ["10001", "10001", "10001", "10001", "10001", "10001", "01110"],
+  C: ["01110", "10001", "10000", "10000", "10000", "10001", "01110"],
+  O: ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
+  A: ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
+};
 function makePng(size) {
-  const W = size, H = size, cx = W / 2;
-  // desenha o naipe de paus: 3 círculos + caule
-  const inCircle = (x, y, ox, oy, r) => (x - ox) ** 2 + (y - oy) ** 2 <= r * r;
-  const r = size * 0.145;
-  const club = (x, y) => {
-    if (inCircle(x, y, cx, size * 0.33, r)) return true;
-    if (inCircle(x, y, cx - r * 0.92, size * 0.52, r)) return true;
-    if (inCircle(x, y, cx + r * 0.92, size * 0.52, r)) return true;
-    const y0 = size * 0.5, y1 = size * 0.84;
-    if (y >= y0 && y <= y1) { const t = (y - y0) / (y1 - y0); const hw = size * 0.04 + t * size * 0.12; if (Math.abs(x - cx) <= hw) return true; }
-    return false;
+  const W = size, H = size, s = size / 180;
+  const px = new Float64Array(W * H * 3);
+  const set = (x, y, r, g, b, a) => {
+    x = Math.round(x); y = Math.round(y);
+    if (x < 0 || y < 0 || x >= W || y >= H) return;
+    if (a == null) a = 1; const o = (y * W + x) * 3, ib = 1 - a;
+    px[o] = r * a + px[o] * ib; px[o + 1] = g * a + px[o + 1] * ib; px[o + 2] = b * a + px[o + 2] * ib;
   };
-  // linha de varredura: 1 byte de filtro (0) + W*4 RGBA
-  const raw = Buffer.alloc(H * (1 + W * 4));
-  const maxd = Math.sqrt(2) * (size / 2);
-  for (let y = 0; y < H; y++) {
-    const rowStart = y * (1 + W * 4); raw[rowStart] = 0;
-    for (let x = 0; x < W; x++) {
-      const o = rowStart + 1 + x * 4;
-      let R, G, B;
-      if (club(x, y)) { R = 247; G = 242; B = 232; } // paus branco-creme
-      else {
-        const d = Math.hypot(x - W / 2, y - H / 2) / maxd; // 0 centro -> 1 borda
-        const m = 1 - d;
-        R = Math.round(15 + m * 14); G = Math.round(70 + m * 55); B = Math.round(45 + m * 32); // verde mesa, centro mais claro
-      }
-      raw[o] = R; raw[o + 1] = G; raw[o + 2] = B; raw[o + 3] = 255;
+  const rect = (x0, y0, x1, y1, r, g, b, a) => { for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) set(x, y, r, g, b, a); };
+  const rrect = (x0, y0, x1, y1, rad, r, g, b, a) => {
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      const dx = Math.max(x0 + rad - x, x - (x1 - 1 - rad), 0);
+      const dy = Math.max(y0 + rad - y, y - (y1 - 1 - rad), 0);
+      if (dx * dx + dy * dy <= rad * rad) set(x, y, r, g, b, a);
     }
+  };
+  const disc = (cx, cy, rad, r, g, b, a) => { for (let y = Math.floor(cy - rad); y <= cy + rad; y++) for (let x = Math.floor(cx - rad); x <= cx + rad; x++) if ((x - cx) ** 2 + (y - cy) ** 2 <= rad * rad) set(x, y, r, g, b, a); };
+  const text = (str, x, y, sc, col) => {
+    let cx = x;
+    for (const ch of str) {
+      const g = FONT[ch];
+      if (g) for (let r = 0; r < 7; r++) for (let c = 0; c < 5; c++) if (g[r][c] === "1") for (let yy = 0; yy < sc; yy++) for (let xx = 0; xx < sc; xx++) set(cx + c * sc + xx, y + r * sc + yy, col[0], col[1], col[2], 1);
+      cx += 5 * sc + 1.4 * sc;
+    }
+  };
+
+  // fundo: feltro verde com leve vinheta
+  const maxd = Math.SQRT2 * (W / 2);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const m = 1 - Math.hypot(x - W / 2, y - H / 2) / maxd; set(x, y, 15 + m * 16, 70 + m * 60, 45 + m * 34, 1); }
+
+  // carta branca com coração vermelho + "A"
+  rrect(20 * s, 24 * s, 104 * s, 126 * s, 12 * s, 28, 24, 20, 1);     // borda escura
+  rrect(22 * s, 26 * s, 102 * s, 124 * s, 11 * s, 247, 244, 238, 1);  // carta
+  const RED = [198, 40, 50];
+  const hcx = 62 * s, hcy = 80 * s, hr = 19 * s;
+  disc(hcx - hr * 0.52, hcy - hr * 0.45, hr * 0.6, RED[0], RED[1], RED[2], 1);
+  disc(hcx + hr * 0.52, hcy - hr * 0.45, hr * 0.6, RED[0], RED[1], RED[2], 1);
+  for (let y = 0; y <= hr * 1.3; y++) { const t = y / (hr * 1.3), half = hr * 1.02 * (1 - t); for (let x = -half; x <= half; x++) set(hcx + x, hcy - hr * 0.15 + y, RED[0], RED[1], RED[2], 1); }
+  text("A", 28 * s, 32 * s, 2.0 * s, RED);
+
+  // caneca de chope (direita), sobrepondo a carta
+  rrect(99 * s, 54 * s, 151 * s, 125 * s, 8 * s, 250, 248, 240, 1);   // vidro
+  rect(104 * s, 74 * s, 146 * s, 119 * s, 242, 172, 28, 1);           // cerveja
+  rect(104 * s, 110 * s, 146 * s, 119 * s, 214, 140, 18, 1);          // base
+  disc(113 * s, 60 * s, 11 * s, 255, 252, 246, 1);                    // espuma
+  disc(126 * s, 56 * s, 12 * s, 255, 253, 249, 1);
+  disc(139 * s, 61 * s, 10 * s, 255, 252, 246, 1);
+  for (let y = -16 * s; y <= 16 * s; y++) for (let x = 0; x <= 22 * s; x++) { const rr = Math.hypot(x, y); if (rr >= 11 * s && rr <= 17 * s) set(149 * s + x, 90 * s + y, 245, 243, 235, 1); } // alça
+  disc(116 * s, 96 * s, 2.2 * s, 255, 255, 255, 0.55); disc(132 * s, 104 * s, 2 * s, 255, 255, 255, 0.5); // bolhas
+
+  // faixa + "TRUCO"
+  rrect(6 * s, 131 * s, 174 * s, 172 * s, 10 * s, 18, 14, 9, 0.92);
+  const sc = 4.4 * s, tw = 5 * (5 * sc) + 4 * (1.4 * sc);
+  text("TRUCO", (W - tw) / 2, 138 * s, sc, [255, 211, 74]);
+
+  // empacota PNG (scanlines com filtro 0)
+  const raw = Buffer.alloc(H * (1 + W * 4));
+  for (let y = 0; y < H; y++) {
+    const rs = y * (1 + W * 4); raw[rs] = 0;
+    for (let x = 0; x < W; x++) { const o = rs + 1 + x * 4, p = (y * W + x) * 3; raw[o] = px[p]; raw[o + 1] = px[p + 1]; raw[o + 2] = px[p + 2]; raw[o + 3] = 255; }
   }
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(H, 4);
-  ihdr[8] = 8; ihdr[9] = 6; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0; // 8-bit RGBA
+  ihdr[8] = 8; ihdr[9] = 6;
   const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-  const png = Buffer.concat([sig, chunk("IHDR", ihdr), chunk("IDAT", deflateSync(raw, { level: 9 })), chunk("IEND", Buffer.alloc(0))]);
-  return png;
+  return Buffer.concat([sig, chunk("IHDR", ihdr), chunk("IDAT", deflateSync(raw, { level: 9 })), chunk("IEND", Buffer.alloc(0))]);
 }
 
 const b64 = makePng(180).toString("base64");
