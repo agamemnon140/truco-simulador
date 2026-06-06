@@ -1,5 +1,10 @@
 # Simulador de Truco
 
+### ▶ Jogar online (simulação de bots): **https://agamemnon140.github.io/truco-simulador/**
+
+> Se a página abrir o README em vez do jogo, é cache do navegador — recarregue
+> com **Ctrl+F5**.
+
 Simulador do jogo de truco em TypeScript, com **motor de regras puro**
 (reaproveitável por CLI hoje e por uma interface web no futuro) e uma CLI
 jogável no terminal.
