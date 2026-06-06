@@ -29,9 +29,10 @@ configurável para trocar de variante e de formato.
     próprias cartas), vale 1, sem truco.
 - Jogadores **humanos e/ou bots**, escolhidos antes da partida.
 - **Bots com inteligência evoluída** (algoritmo genético): `inocente`
-  (heurística), `melhorada_1/2/3` e a **`melhorada_4`** — **não-linear** (features
-  em faixas baixo/médio/alto, com limiares evolutivos e parcimônia). É a mais
-  forte: no round-robin de pior caso **bate até a m3** (~63% em sementes novas).
+  (heurística), `melhorada_1/2/3`, a `melhorada_4` (**não-linear**, features em
+  faixas) e a **`melhorada_5`** — fitness **ponderado por geração** (última
+  domina) com **piso de 50%**: **ganha de todas**, inclusive da m4 (~52% em
+  sementes novas).
 - Formatos: duplas (2v2), mano a mano (1v1) e trios (3v3).
 
 ## Como rodar
@@ -106,6 +107,7 @@ src/
     train.ts     # evolui em escada (fitness = média vs pool)
     train-rr.ts  # round-robin: fitness = pior caso vs pool fixo (melhorada_3)
     train-rr4.ts # round-robin não-linear (faixas + parcimônia) (melhorada_4)
+    train-rr5.ts # fitness ponderado por geração + piso de 50% (melhorada_5)
     evaluate.ts  # mede força (vs inocente, ou genoma vs genoma) em sementes novas
     rng.ts       # RNG determinístico do treino
   genomes/
@@ -113,6 +115,7 @@ src/
     melhorada_2.json
     melhorada_3.json
     melhorada_4.json
+    melhorada_5.json
   cli/
     setup.ts     # configuração pré-partida
     render.ts    # formatação para o terminal
@@ -148,6 +151,8 @@ POP=60 GENS=40 GAMES=300 RUNGS=2 npm run train
 POP=80 GENS=50 GAMES=150 npm run train:rr
 # Round-robin NAO-LINEAR (faixas + parcimonia) vs {inocente,m1,m2,m3}: gera melhorada_4
 POP=70 GENS=45 GAMES=120 LAMBDA=0.01 npm run train:rr4
+# Fitness PONDERADO por geracao (ultima domina) + piso de 50% vs {inocente,m1..m4}: gera melhorada_5
+POP=70 GENS=45 GAMES=100 WEIGHTS=1,1,2,4,16 LAMBDA_FLOOR=5 npm run train:rr5
 # Avaliar em sementes novas (genoma vs inocente, ou genoma vs genoma)
 GAMES=800 npm run evaluate src/genomes/melhorada_4.json
 GAMES=800 npm run evaluate src/genomes/melhorada_4.json src/genomes/melhorada_3.json
@@ -180,8 +185,16 @@ quantas faixas cada variável usa. Resultado: a maioria usou 4 faixas (`pWin`,
 `forcaRelativa`, `forcaMedia`, `difPlacar`, `valorEmJogo`), e `fracMaisFortes`
 colapsou para 2 — e a m4 **supera a m3** (a não-linearidade agregou valor real).
 
+A `melhorada_5` muda o **fitness**: média **ponderada por geração** (pesos
+exponenciais `1,1,2,4,16` — a última domina) **menos** uma penalidade forte de
+**piso de 50%** em cada confronto. Resultado: **ganha de todas as gerações**
+(sementes novas: inocente 58%, m1 60%, m2 88%, m3 59%, **m4 52%**) sem regredir.
+A margem sobre a m4 é **estreita (~52%)** — sinal de que a fronteira da
+arquitetura linear/faixas está **saturando**; o próximo salto seria **inferência**
+(modelar/adaptar ao oponente).
+
 No HTML e no CLI dá para escolher a inteligência de cada equipe (inocente ×
-melhorada_1…4) e assistir à diferença. Há também um **modo
+melhorada_1…5) e assistir à diferença. Há também um **modo
 "explicar jogada"** (toggle no HTML, `npm run demo:explica` no CLI) que mostra,
 a cada decisão da Melhorada, as features que mais pesaram — ex.: *"jogou 6♣:
 cobreParceiro +0.81"* (escolheu não cobrir o parceiro = amarrar).

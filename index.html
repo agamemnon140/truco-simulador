@@ -98,7 +98,8 @@
     <div class="control">
       Equipe 1
       <select id="botA">
-        <option value="melhorada_4" selected>Melhorada 4</option>
+        <option value="melhorada_5" selected>Melhorada 5</option>
+        <option value="melhorada_4">Melhorada 4</option>
         <option value="melhorada_3">Melhorada 3</option>
         <option value="melhorada_2">Melhorada 2</option>
         <option value="melhorada_1">Melhorada 1</option>
@@ -111,6 +112,7 @@
         <option value="melhorada_2">Melhorada 2</option>
         <option value="melhorada_3">Melhorada 3</option>
         <option value="melhorada_4">Melhorada 4</option>
+        <option value="melhorada_5">Melhorada 5</option>
       </select>
     </div>
     <div class="control">
@@ -865,6 +867,107 @@ var Truco = (() => {
     ]
   };
 
+  // src/genomes/melhorada_5.json
+  var melhorada_5_default = {
+    cardWeights: [
+      -0.4,
+      0.8527174017274575,
+      1.3314953692532976,
+      1.4258957416801101,
+      0.7189975000420961,
+      0.46741507400150006,
+      -1.3040695303454708,
+      1.1091449382415721,
+      0.056096447674423205,
+      -1.0172114742998444,
+      -1.0428773746596587,
+      1.4116927662511516,
+      -0.662694671721126,
+      -1.4221462529980824,
+      -1.3698649585996745,
+      -0.07806449802580273,
+      0.46008742149481063,
+      -1.1152387155459338,
+      1.1104890319984406,
+      -0.6285584886293736
+    ],
+    betWeights: [
+      0.7412285696755433,
+      0.18328080940142988,
+      -0.8618911233976723,
+      2.0623423879509786,
+      0.6417907369245979,
+      -0.5461946867674344,
+      -0.45021429988545364,
+      0.49095828476230124,
+      0.27865016924802605,
+      -1.0808802564027546,
+      0.38080979732413833,
+      1.5230735926721863,
+      0.7855379964377699,
+      -0.3702097130531178,
+      0.11390345855072698,
+      -0.869137422285807,
+      0.5042569420729061,
+      -0.19123975730259962
+    ],
+    thrCall: 1.8701386297571247,
+    thrAccept: -0.2676352033381372,
+    thrRaise: 1.240486222418571,
+    pBluff: -2.5287625732604373,
+    playTemp: -0.9632571338157194,
+    cardBucketThresholds: [
+      1.0978962404784083,
+      0.1085576797151658,
+      0.08928533875802563,
+      0.26238586288288807,
+      0.3771705787226072,
+      0.5674288551175806,
+      0.27193736631908755,
+      0.3739449715596137,
+      0.7338789662982818
+    ],
+    cardBucketWeights: [
+      -0.207579655056919,
+      0.12731933316200914,
+      0.20066006604292153,
+      0.0551434868420931,
+      -0.11055494500918639,
+      -0.13581453518526101,
+      -0.037228851710713246,
+      0.03728301709116792,
+      0.16414316649056052,
+      -0.4256390175720041,
+      -0.3912226848483321,
+      -0.3986327489514254
+    ],
+    betBucketThresholds: [
+      0.6316030888656244,
+      1.1765637501981314,
+      0.0847963234031619,
+      0.07805969796092863,
+      0.31884510514228304,
+      1.2752715912317065,
+      0.6035569468062155,
+      0.808734097854375,
+      0.13228455933515762
+    ],
+    betBucketWeights: [
+      -0.4339711591454882,
+      -0.2710633079960528,
+      -0.1418770127471375,
+      -0.24651988174555917,
+      0.2258468206290144,
+      -0.19652634873106156,
+      -0.2402803556609027,
+      0.5796801002306381,
+      -0.23841951689157642,
+      0.38694615531550364,
+      0.11352712409429555,
+      0.11702368678465731
+    ]
+  };
+
   // src/players/bot.ts
   function maxStrength(view) {
     return view.rules.rankOrder.length + view.rules.manilhaSuitOrder.length - 1;
@@ -1463,6 +1566,7 @@ var Truco = (() => {
   var melhorada2Genome = parseGenome(melhorada_2_default);
   var melhorada3Genome = parseGenome(melhorada_3_default);
   var melhorada4Genome = parseGenome(melhorada_4_default);
+  var melhorada5Genome = parseGenome(melhorada_5_default);
   var PERSONALITIES = [
     {
       id: "inocente",
@@ -1491,8 +1595,14 @@ var Truco = (() => {
     {
       id: "melhorada_4",
       label: "Melhorada 4",
-      description: "Nao-linear (features em faixas) round-robin. A mais forte: bate ate a m3 (~63%).",
+      description: "Nao-linear (features em faixas) round-robin. Bate a m3 (~63%).",
       create: (name, rng, onDecision) => new EvolvedBotPlayer(name, melhorada4Genome, rng, onDecision)
+    },
+    {
+      id: "melhorada_5",
+      label: "Melhorada 5",
+      description: "Fitness ponderado (ultima domina) + piso 50%. Ganha de TODAS, inclusive m4 (~52%).",
+      create: (name, rng, onDecision) => new EvolvedBotPlayer(name, melhorada5Genome, rng, onDecision)
     }
   ];
   function getPersonality(id) {

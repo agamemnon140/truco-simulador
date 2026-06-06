@@ -9,6 +9,7 @@ import melhorada1Json from "../genomes/melhorada_1.json";
 import melhorada2Json from "../genomes/melhorada_2.json";
 import melhorada3Json from "../genomes/melhorada_3.json";
 import melhorada4Json from "../genomes/melhorada_4.json";
+import melhorada5Json from "../genomes/melhorada_5.json";
 import { Rng } from "../core/deck.js";
 import { BotPlayer } from "./bot.js";
 import { EvolvedBotPlayer } from "./evolvedBot.js";
@@ -21,7 +22,8 @@ export type PersonalityId =
   | "melhorada_1"
   | "melhorada_2"
   | "melhorada_3"
-  | "melhorada_4";
+  | "melhorada_4"
+  | "melhorada_5";
 
 export interface Personality {
   id: PersonalityId;
@@ -35,6 +37,7 @@ const melhorada1Genome = parseGenome(melhorada1Json);
 const melhorada2Genome = parseGenome(melhorada2Json);
 const melhorada3Genome = parseGenome(melhorada3Json);
 const melhorada4Genome = parseGenome(melhorada4Json);
+const melhorada5Genome = parseGenome(melhorada5Json);
 
 export const PERSONALITIES: Personality[] = [
   {
@@ -67,9 +70,16 @@ export const PERSONALITIES: Personality[] = [
   {
     id: "melhorada_4",
     label: "Melhorada 4",
-    description: "Nao-linear (features em faixas) round-robin. A mais forte: bate ate a m3 (~63%).",
+    description: "Nao-linear (features em faixas) round-robin. Bate a m3 (~63%).",
     create: (name, rng, onDecision) =>
       new EvolvedBotPlayer(name, melhorada4Genome, rng, onDecision),
+  },
+  {
+    id: "melhorada_5",
+    label: "Melhorada 5",
+    description: "Fitness ponderado (ultima domina) + piso 50%. Ganha de TODAS, inclusive m4 (~52%).",
+    create: (name, rng, onDecision) =>
+      new EvolvedBotPlayer(name, melhorada5Genome, rng, onDecision),
   },
 ];
 

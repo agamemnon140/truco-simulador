@@ -4,7 +4,12 @@ import { BotPlayer } from "../src/players/bot.js";
 import { EvolvedBotPlayer } from "../src/players/evolvedBot.js";
 import { seedGenome } from "../src/players/genome.js";
 import { fromVector, randomGenome, seedGenome, toVector } from "../src/players/genome.js";
-import { Contender, evaluateContender, evaluateVsPool } from "../src/training/arena.js";
+import {
+  Contender,
+  evaluateContender,
+  evaluateVsPool,
+  weightedFloorFitness,
+} from "../src/training/arena.js";
 import { runGA } from "../src/training/ga.js";
 import { seededRng } from "./helpers.js";
 
@@ -87,5 +92,30 @@ describe("arena — determinismo e sanidade", () => {
     expect(stats.worstWinRate).toBeCloseTo(min, 12);
     expect(stats.meanWinRate).toBeCloseTo(mean, 12);
     expect(stats.worstWinRate).toBeLessThanOrEqual(stats.meanWinRate + 1e-12);
+  });
+});
+
+describe("weightedFloorFitness", () => {
+  it("media ponderada valoriza a ultima geracao", () => {
+    // taxas iguais -> weighted = 0.6 independente dos pesos
+    const a = weightedFloorFitness([0.6, 0.6, 0.6], [1, 2, 16], 0);
+    expect(a.weighted).toBeCloseTo(0.6, 12);
+    // ultima alta domina: pesos [1,1,16], taxas [0.5,0.5,1.0]
+    const b = weightedFloorFitness([0.5, 0.5, 1.0], [1, 1, 16], 0);
+    expect(b.weighted).toBeCloseTo((0.5 + 0.5 + 16) / 18, 12);
+    expect(b.weighted).toBeGreaterThan(0.9);
+  });
+
+  it("floorPenalty soma os deficits abaixo de 0.5 e penaliza o score", () => {
+    const f = weightedFloorFitness([0.4, 0.7, 0.45], [1, 1, 1], 5);
+    // deficits: (0.5-0.4)+(0)+(0.5-0.45) = 0.10+0.05 = 0.15
+    expect(f.floorPenalty).toBeCloseTo(0.15, 12);
+    expect(f.score).toBeCloseTo(f.weighted - 5 * 0.15, 12);
+  });
+
+  it("sem deficit, score = weighted", () => {
+    const f = weightedFloorFitness([0.6, 0.55, 0.9], [1, 2, 4], 5);
+    expect(f.floorPenalty).toBe(0);
+    expect(f.score).toBeCloseTo(f.weighted, 12);
   });
 });

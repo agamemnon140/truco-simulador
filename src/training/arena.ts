@@ -127,3 +127,29 @@ export async function evaluateVsPool(
   const meanWinRate = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
   return { perOpponent, worstWinRate, meanWinRate };
 }
+
+/**
+ * Fitness ponderado por geracao + piso. Puro (testavel):
+ *   weighted     = Σ w_i·winRate_i / Σ w_i        (media ponderada, latest-heavy)
+ *   floorPenalty = Σ max(0, floor − winRate_i)    (deficit abaixo do piso)
+ *   score        = weighted − lambdaFloor·floorPenalty
+ * `winRates` e `weights` devem estar na MESMA ordem (pool).
+ */
+export function weightedFloorFitness(
+  winRates: readonly number[],
+  weights: readonly number[],
+  lambdaFloor: number,
+  floor = 0.5,
+): { weighted: number; floorPenalty: number; score: number } {
+  let wsum = 0;
+  let acc = 0;
+  let floorPenalty = 0;
+  for (let i = 0; i < winRates.length; i++) {
+    const w = weights[i] ?? 1;
+    wsum += w;
+    acc += w * winRates[i]!;
+    floorPenalty += Math.max(0, floor - winRates[i]!);
+  }
+  const weighted = wsum > 0 ? acc / wsum : 0;
+  return { weighted, floorPenalty, score: weighted - lambdaFloor * floorPenalty };
+}

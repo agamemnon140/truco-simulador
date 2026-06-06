@@ -14,6 +14,7 @@
     "train": "tsx src/training/train.ts",
     "train:rr": "tsx src/training/train-rr.ts",
     "train:rr4": "tsx src/training/train-rr4.ts",
+    "train:rr5": "tsx src/training/train-rr5.ts",
     "evaluate": "tsx src/training/evaluate.ts",
     "test": "vitest run",
     "test:watch": "vitest"
