@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { Game } from "../src/equilibrium/game.js";
 import { CFRSolver } from "../src/equilibrium/cfr.js";
 import { VonNeumannGame } from "../src/equilibrium/games/vonNeumann.js";
+import { TrucoLastTrick2v2 } from "../src/equilibrium/games/trucoLastTrick2v2.js";
+import { Rank, Suit } from "../src/core/types.js";
 
 /** Matching pennies em forma extensiva (info imperfeita): equilibrio 50/50, v=0. */
 class MatchingPennies implements Game<{ h: string }> {
@@ -60,5 +62,24 @@ describe("CFR — validacao vs paper (von Neumann basico, B=2)", () => {
     expect(pBetWorst).toBeGreaterThan(0.5);
     expect(pBetBest).toBeGreaterThan(0.5);
     expect(pBetMid).toBeLessThan(0.3);
+  });
+});
+
+describe("CFR — ultima vaza 2v2 (jogo de time / coordenadores)", () => {
+  it("converge (exploitability pequena) e a estrutura e polarizada", () => {
+    // vira 4 de paus -> manilha = 5; forcas: 4=0,...,3=9, manilhas 10..13.
+    const g = new TrucoLastTrick2v2({ rank: Rank.Quatro, suit: Suit.Paus });
+    const solver = new CFRSolver(g);
+    solver.train(250); // poucas iteracoes: a estrutura polariza rapido
+    expect(solver.exploitability()).toBeLessThan(0.06);
+
+    const pTruco = (lo: number, hi: number) =>
+      solver.averageStrategy(`A${lo},${hi}|`, 2)[0]!;
+    // par com manilha de paus (13) + 4 (0): VALOR -> truca muito.
+    expect(pTruco(0, 13)).toBeGreaterThan(0.7);
+    // par pior (4=0 + 6=2): BLEFE -> truca muito.
+    expect(pTruco(0, 2)).toBeGreaterThan(0.7);
+    // par forte sem manilha (2=8 + 3=9): CHECK -> truca pouco.
+    expect(pTruco(8, 9)).toBeLessThan(0.3);
   });
 });

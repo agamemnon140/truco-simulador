@@ -12,6 +12,7 @@ import { Card, Rank, Suit, cardToString } from "../core/types.js";
 import { CFRSolver } from "./cfr.js";
 import { VonNeumannGame } from "./games/vonNeumann.js";
 import { TrucoLastTrickGame } from "./games/trucoLastTrick.js";
+import { TrucoLastTrick2v2 } from "./games/trucoLastTrick2v2.js";
 
 const ITERS = Number(process.env.ITERS) || 3000;
 const pct = (x: number) => `${(x * 100).toFixed(0)}%`;
@@ -105,7 +106,84 @@ function solveTruco(vira: Card): void {
   );
 }
 
+// ---------- 3) Subjogo do truco 2v2 (jogo de TIME / coordenadores) ----------
+function shortLabel(strength: number): string {
+  const common = TRUCO_PAULISTA.rankOrder.length;
+  if (strength < common) return `${TRUCO_PAULISTA.rankOrder[strength]}`;
+  return `m${TRUCO_PAULISTA.manilhaSuitOrder[strength - common]![0]!.toUpperCase()}`;
+}
+
+function solveTruco2v2(vira: Card): void {
+  console.log(
+    `\n══════ Equilibrio (GTO) 2v2: ultima vaza — vira ${cardToString(vira)} ══════`,
+  );
+  console.log(
+    "  (jogo de TIME modelado como 2 COORDENADORES: cada dupla sabe suas 2 cartas.",
+  );
+  console.log(
+    "   E um TETO — duplas reais nao se comunicam. Time A = assentos 0,2; B = 1,3.)",
+  );
+  const g = new TrucoLastTrick2v2(vira);
+  const solver = new CFRSolver(g);
+  const step = Math.max(1, Math.floor(ITERS / 5));
+  for (let done = 0; done < ITERS; done += step) {
+    solver.train(Math.min(step, ITERS - done));
+    console.log(
+      `  iter ${String(done + step).padStart(5)}: valor(media)=${solver
+        .averageStrategyValue()
+        .toFixed(4)}  exploitability=${solver.exploitability().toFixed(4)}`,
+    );
+  }
+  console.log(`valor ao Time A (lider) = ${solver.averageStrategyValue().toFixed(4)}`);
+
+  const S = [...new Set(g.chanceOutcomes().map((d) => d.state.s[0]))].sort((a, b) => a - b);
+  const hdr = "          outra-> " + S.map((s) => shortLabel(s).padStart(4)).join("");
+  // Matriz: P(truco) do Time A por (melhor carta = linha, outra carta = coluna).
+  console.log("\nTime A — P(pedir truco) por par de cartas [melhor x outra]:");
+  console.log(hdr);
+  for (let hi = S.length - 1; hi >= 0; hi--) {
+    const best = S[hi]!;
+    let row = `  melhor ${shortLabel(best).padEnd(3)} | `;
+    for (let lo = 0; lo < S.length; lo++) {
+      if (lo > hi) {
+        row += "    ";
+        continue;
+      }
+      const a = Math.min(best, S[lo]!);
+      const b = Math.max(best, S[lo]!);
+      const p = solver.averageStrategy(`A${a},${b}|`, 2)[0]!;
+      row += `${Math.round(p * 100)}`.padStart(4);
+    }
+    console.log(row);
+  }
+  console.log(
+    "\nTime B — P(defender = aceitar+seis | A trucou) por par [melhor x outra]:",
+  );
+  console.log(hdr);
+  for (let hi = S.length - 1; hi >= 0; hi--) {
+    const best = S[hi]!;
+    let row = `  melhor ${shortLabel(best).padEnd(3)} | `;
+    for (let lo = 0; lo < S.length; lo++) {
+      if (lo > hi) {
+        row += "    ";
+        continue;
+      }
+      const a = Math.min(best, S[lo]!);
+      const b = Math.max(best, S[lo]!);
+      const r = solver.averageStrategy(`B${a},${b}|truco`, 3); // [fold, accept, seis]
+      const defend = r[1]! + r[2]!;
+      row += `${Math.round(defend * 100)}`.padStart(4);
+    }
+    console.log(row);
+  }
+  console.log(
+    "\nLeitura: P(truco) alta com a melhor carta forte (valor); o par 'fraco+fraco'\n" +
+      "vira blefe. Com o ZAP garantido, a 2a carta libera mais agressao.",
+  );
+}
+
 const card = (rank: Rank, suit: Suit): Card => ({ rank, suit });
 validateVonNeumann();
 // vira 4 de paus -> manilha = 5
 solveTruco(card(Rank.Quatro, Suit.Paus));
+solveTruco2v2(card(Rank.Quatro, Suit.Paus));

@@ -213,9 +213,23 @@ npm run solve   # valida o CFR vs a forma fechada do paper de von Neumann
   Contraste interessante: nossos bots evoluídos blefam pouco e de forma
   **uniforme**, não polarizada — eles *exploram*, o GTO é *inexplorável*.
 
-> Ressalva: só o **1v1** é jogo de dois-jogadores soma-zero (tem equilíbrio
-> garantido). 2v2 é jogo de **time** — fora do escopo do CFR aqui. O salto
-> seguinte seria CFR na **mão 1v1 completa** (3 vazas + escalada).
+### Última vaza 2v2 — jogo de TIME (duplas coordenadas)
+
+O 2v2 **não é** dois-jogadores soma-zero: é um **jogo de time**. A versão
+tratável modela cada dupla como um **coordenador** (estratégia conjunta sabendo
+as 2 cartas do time) → vira 2-jogadores soma-zero → CFR vale. O resultado é o
+**team-maxmin com correlação (TMECor)** — um **teto** (duplas reais não se
+comunicam). O caso sem comunicação (TME) é NP-difícil, fora de escopo.
+
+`npm run solve` também resolve a última vaza 2v2 (exploitability ~`0.0004`,
+valor `+0.089` ao time que lidera) e imprime as **frequências GTO por par de
+cartas**. A estrutura é a mesma do pôquer, **modulada por ter 2 cartas**: truca
+por **valor** com manilha, **blefa** com o par fraco, dá **check** com a região
+forte-mas-sem-manilha (3/2/A/K). A 2ª carta importa (`Q+4` → blefe; `Q+6` → quase
+nunca).
+
+> Próximo salto possível: CFR na **mão 1v1 completa** (3 vazas + escalada) com
+> abstração de cartas por força (MCCFR) → bot **inexplorável** de verdade.
 
 No HTML e no CLI dá para escolher a inteligência de cada equipe (inocente ×
 melhorada_1…5) e assistir à diferença. Há também um **modo
