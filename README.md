@@ -28,6 +28,9 @@ configurável para trocar de variante e de formato.
   - Ambas com 11: mão jogada **fechada/às cegas** (os jogadores não veem as
     próprias cartas), vale 1, sem truco.
 - Jogadores **humanos e/ou bots**, escolhidos antes da partida.
+- **Bots com inteligência evoluída** (algoritmo genético): o `inocente`
+  (heurística simples) e o `melhorada_1`, treinado por simulação — ~**76% de
+  vitórias** contra o inocente em partidas com sementes novas.
 - Formatos: duplas (2v2), mano a mano (1v1) e trios (3v3).
 
 ## Como rodar
@@ -40,6 +43,10 @@ npm run demo       # demonstração automática: bots vs bots, sem digitar nada
 npm run demo:verbose  # demo detalhada: cartas de cada um, jogadas e apostas
 npm run demo:onze     # demonstra a mão de onze (11x9 e 11x11)
 npm test           # bateria de testes (regras, vazas, apostas, mão de onze...)
+
+# Bots evolutivos (algoritmo genético)
+npm run train      # evolui melhorada_N vs inocente (escada/hall of fame)
+npm run evaluate   # mede a força do genoma vs inocente em sementes novas
 ```
 
 ### Versão HTML (assistir bots no navegador)
@@ -81,9 +88,21 @@ src/
     hand.ts      # condução de uma mão + regras de empate
     match.ts     # partida: equipes, placar, até 12
   players/
-    player.ts    # interface Player (humano/bot/futura UI)
-    bot.ts       # bot básico por heurística
-    humanCli.ts  # jogador humano via terminal
+    player.ts        # interface Player (humano/bot/futura UI)
+    bot.ts           # bot básico por heurística ("inocente")
+    evolvedBot.ts    # bot com inteligência evoluída (usa um genoma)
+    features.ts      # avaliação contextual (carta + contexto da partida)
+    genome.ts        # genoma: pesos/limiares + (de)serialização
+    personalities.ts # registro: inocente, melhorada_1...
+    humanCli.ts      # jogador humano via terminal
+  training/
+    arena.ts     # partidas em massa (sementes comuns + espelhamento)
+    ga.ts        # algoritmo genético (seleção, crossover, mutação)
+    train.ts     # evolui em escada (inocente → melhorada_N)
+    evaluate.ts  # mede força vs inocente em sementes novas
+    rng.ts       # RNG determinístico do treino
+  genomes/
+    melhorada_1.json  # genoma treinado (versionado; usado no jogo)
   cli/
     setup.ts     # configuração pré-partida
     render.ts    # formatação para o terminal
@@ -97,8 +116,31 @@ web/
   truco.bundle.js    # bundle do motor para o navegador (gerado por build:web)
 ```
 
+## Bots evolutivos (algoritmo genético)
+
+A inteligência `melhorada_1` foi **aprendida por simulação**, não programada à
+mão. Cada bot é parametrizado por um **genoma** (pesos + limiares) que pondera
+features **contextuais**: a carta vence a mesa agora? o parceiro já está ganhando
+a vaza (para "amarrar")? qual a probabilidade de vencer dadas as cartas não
+vistas? em que vaza estamos, quantas cada dupla ganhou, quem lidera, qual o
+placar? Esses pesos decidem **qual carta jogar** e **as apostas** (truco /
+aceitar / correr), com um gene de **blefe**.
+
+O algoritmo genético faz muitos bots jogarem contra o `inocente` (e, em degraus
+seguintes, contra os campeões anteriores — *hall of fame*), selecionando os
+melhores. Para medir habilidade e não sorte, cada candidato joga as **mesmas
+sementes** (baralhos) e em **partidas espelhadas**.
+
+```bash
+GENS=30 GAMES=120 RUNGS=2 npm run train   # gera src/genomes/melhorada_N.json
+GAMES=800 npm run evaluate                # ~76% de vitórias vs inocente
+```
+
+No HTML e no CLI dá para escolher a inteligência de cada equipe (inocente ×
+melhorada_1) e assistir à diferença.
+
 ## Próximos passos (fora do MVP)
 
 - Interface gráfica/web reaproveitando o `core` (já está isolado para isso).
-- Bot mais sofisticado e simulação em massa para estatísticas.
+- Mais degraus na escada (melhorada_2, _3…) e simulação em massa para estatísticas.
 - Outras variantes (Gaúcho/Argentina: envido, flor) via novos `RuleSet`.

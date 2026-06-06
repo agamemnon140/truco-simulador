@@ -95,6 +95,18 @@
       </select>
     </div>
     <div class="control">
+      Equipe 1
+      <select id="botA">
+        <option value="melhorada_1" selected>Melhorada 1</option>
+        <option value="inocente">Inocente</option>
+      </select>
+      ×&nbsp;Equipe 2
+      <select id="botB">
+        <option value="inocente" selected>Inocente</option>
+        <option value="melhorada_1">Melhorada 1</option>
+      </select>
+    </div>
+    <div class="control">
       <label class="check"><input type="checkbox" id="onze" /> começar 9×9 (chega na mão de onze)</label>
     </div>
     <div class="control">
@@ -114,6 +126,8 @@
     const speedSel = document.getElementById("speed");
     const onzeChk = document.getElementById("onze");
     const seedInp = document.getElementById("seed");
+    const botASel = document.getElementById("botA");
+    const botBSel = document.getElementById("botB");
 
     let timer = null;
 
@@ -147,7 +161,7 @@
       runBtn.disabled = true;
       skipBtn.disabled = false;
 
-      const opts = {};
+      const opts = { teamABot: botASel.value, teamBBot: botBSel.value };
       const seed = seedInp.value.trim();
       if (seed !== "") opts.seed = Number(seed);
       if (onzeChk.checked) opts.initialScores = [9, 9];

@@ -10,7 +10,8 @@
 
 import { MatchObserver, playMatch } from "../core/match.js";
 import { TRUCO_PAULISTA } from "../core/rules.js";
-import { BotPlayer } from "../players/bot.js";
+import { getPersonality } from "../players/personalities.js";
+import { Player } from "../players/player.js";
 import { fmtCard, teamName } from "../cli/render.js";
 import { Card } from "../core/types.js";
 
@@ -30,6 +31,10 @@ export interface SimulateOptions {
   seed?: number;
   /** Placar inicial por equipe (ex.: [9,9] para chegar logo na mao de onze). */
   initialScores?: number[];
+  /** Personalidade do bot da Equipe 1 (assentos pares). Default melhorada_1. */
+  teamABot?: string;
+  /** Personalidade do bot da Equipe 2 (assentos impares). Default inocente. */
+  teamBBot?: string;
 }
 
 /**
@@ -45,6 +50,10 @@ export async function simulate(options: SimulateOptions = {}): Promise<string[]>
   const fmtHand = (h: readonly Card[]) => h.map(fmtCard).join("  ");
   let playSeq = 0;
 
+  // Assentos pares = Equipe 1 (teamABot); impares = Equipe 2 (teamBBot).
+  const persA = getPersonality(options.teamABot ?? "melhorada_1");
+  const persB = getPersonality(options.teamBBot ?? "inocente");
+
   const observer: MatchObserver = {
     onMatchStart({ teamOfSeat }) {
       line("════════════════════════════════════════════════════════");
@@ -53,6 +62,7 @@ export async function simulate(options: SimulateOptions = {}): Promise<string[]>
       names.forEach((n, seat) =>
         line(`   assento ${seat}: ${n}  →  ${teamName(teamOfSeat[seat]!)}`),
       );
+      line(`Inteligencia → ${teamName(0)}: ${persA.label}   ×   ${teamName(1)}: ${persB.label}`);
       line(`Variante: ${TRUCO_PAULISTA.name} — ate ${TRUCO_PAULISTA.pointsToWin} pontos.`);
     },
     onHandStart({ handNumber, firstSeat }) {
@@ -121,7 +131,13 @@ export async function simulate(options: SimulateOptions = {}): Promise<string[]>
     },
   };
 
-  const players = names.map((n) => new BotPlayer(n));
+  const players: Player[] = names.map((n, seat) => {
+    const pers = seat % 2 === 0 ? persA : persB;
+    const rng =
+      options.seed === undefined ? undefined : seededRng(options.seed * 100 + seat + 1);
+    return pers.create(n, rng);
+  });
+
   await playMatch({
     rules: TRUCO_PAULISTA,
     players,

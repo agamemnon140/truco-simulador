@@ -4,6 +4,10 @@
  */
 
 import { Rng } from "../src/core/deck.js";
+import { manilhaRank } from "../src/core/ranking.js";
+import { TRUCO_PAULISTA } from "../src/core/rules.js";
+import { Card } from "../src/core/types.js";
+import { Play } from "../src/core/vaza.js";
 import {
   Action,
   MaoDeOnzeContext,
@@ -13,6 +17,37 @@ import {
   Proposal,
   RaiseResponse,
 } from "../src/players/player.js";
+
+/** Constroi uma PlayerView para testes, com defaults razoaveis. */
+export function makeView(opts: {
+  hand: Card[];
+  vira: Card;
+  seat?: number;
+  scores?: number[];
+  currentVazaPlays?: Play[];
+  completedVazaPlays?: Play[][];
+  completedVazaResults?: PlayerView["completedVazaResults"];
+  handValue?: number;
+  blind?: boolean;
+}): PlayerView {
+  const seat = opts.seat ?? 0;
+  const teamOfSeat = [0, 1, 0, 1];
+  return {
+    seat,
+    team: teamOfSeat[seat]!,
+    hand: opts.hand,
+    vira: opts.vira,
+    manilha: manilhaRank(opts.vira, TRUCO_PAULISTA),
+    rules: TRUCO_PAULISTA,
+    scores: opts.scores ?? [0, 0],
+    teamOfSeat,
+    completedVazaPlays: opts.completedVazaPlays ?? [],
+    completedVazaResults: opts.completedVazaResults ?? [],
+    currentVazaPlays: opts.currentVazaPlays ?? [],
+    handValue: opts.handValue ?? 1,
+    blind: opts.blind ?? false,
+  };
+}
 
 /** RNG deterministico simples (LCG) para embaralhar de forma reproduzivel. */
 export function seededRng(seed: number): Rng {

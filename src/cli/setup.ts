@@ -6,7 +6,7 @@
 import { RuleSet, TRUCO_PAULISTA, makeManoAMano, makeTrios } from "../core/rules.js";
 import { assignTeams } from "../core/match.js";
 import { Player } from "../players/player.js";
-import { BotPlayer } from "../players/bot.js";
+import { PERSONALITIES, getPersonality } from "../players/personalities.js";
 import { HumanCliPlayer } from "../players/humanCli.js";
 import { teamName } from "./render.js";
 import { ask, print } from "./io.js";
@@ -54,11 +54,24 @@ export async function runSetup(): Promise<SetupResult> {
     ).toLowerCase();
     const isBot = typeIn === "b" || typeIn === "bot";
 
-    const defaultName = isBot ? `Bot ${seat}` : `Jogador ${seat}`;
+    let personality = null as ReturnType<typeof getPersonality> | null;
+    if (isBot) {
+      print("  Inteligencia do bot:");
+      PERSONALITIES.forEach((p, i) =>
+        print(`    [${i}] ${p.label} — ${p.description}`),
+      );
+      const pickIn = await ask(`  Escolha [1 = ${PERSONALITIES[1]!.label}]: `);
+      const idx = Number.parseInt(pickIn, 10);
+      personality = PERSONALITIES[Number.isInteger(idx) ? idx : 1] ?? PERSONALITIES[1]!;
+    }
+
+    const defaultName = isBot ? `${personality!.label} ${seat}` : `Jogador ${seat}`;
     const nameIn = await ask(`Assento ${seat} — nome [${defaultName}]: `);
     const name = nameIn || defaultName;
     names.push(name);
-    players.push(isBot ? new BotPlayer(name) : new HumanCliPlayer(name, names));
+    players.push(
+      isBot ? personality!.create(name) : new HumanCliPlayer(name, names),
+    );
   }
 
   // Os HumanCliPlayer compartilham o mesmo array `names` (preenchido acima).

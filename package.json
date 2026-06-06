@@ -10,6 +10,8 @@
     "demo:verbose": "tsx src/cli/verbose-demo.ts",
     "demo:onze": "tsx src/cli/maoonze-demo.ts",
     "build:web": "node scripts/build-web.mjs",
+    "train": "tsx src/training/train.ts",
+    "evaluate": "tsx src/training/evaluate.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
