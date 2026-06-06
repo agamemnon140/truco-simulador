@@ -25,5 +25,6 @@ export { calcScenario, CALC_POLICIES } from "../analysis/calcApi.js";
 export type { CalcScenario, CalcOptions, CalcResult } from "../analysis/calcApi.js";
 export { Rank, Suit, cardToString } from "../core/types.js";
 export type { Card } from "../core/types.js";
-export { manilhaRank } from "../core/ranking.js";
+export { manilhaRank, cardStrength } from "../core/ranking.js";
+export { resolveVaza } from "../core/vaza.js";
 export { TRUCO_PAULISTA } from "../core/rules.js";

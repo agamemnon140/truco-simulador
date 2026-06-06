@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Truco · Calculadora de chance de vitória</title>
+<style>
+  :root {
+    --bg: #0c0c0c; --fg: #d6d6d6; --accent: #7ee787; --dim: #8a8a8a;
+    --bar: #161616; --border: #2a2a2a; --blue: #58a6ff; --gold: #e3b341; --red: #ff7b72;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #000; color: var(--fg);
+    font-family: "Cascadia Code", "Consolas", "Menlo", "DejaVu Sans Mono", monospace;
+    font-size: 14px; line-height: 1.4; padding: 18px; max-width: 920px; margin: 0 auto;
+  }
+  h1 { color: var(--accent); font-size: 1.25em; margin: 0 0 2px; }
+  .sub { color: var(--dim); margin: 0 0 16px; font-size: 0.9em; }
+  .panel { background: var(--bar); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+  .panel h2 { color: var(--accent); margin: 0 0 10px; font-size: 1.02em; }
+  .panel h3 { color: var(--blue); margin: 14px 0 6px; font-size: 0.95em; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
+  .row .lbl { color: var(--dim); min-width: 190px; }
+  button, select, input {
+    font-family: inherit; font-size: 0.95em;
+    background: #1e1e1e; color: var(--fg); border: 1px solid var(--border);
+    border-radius: 5px; padding: 6px 9px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  select.card-sel { min-width: 78px; }
+  select.card-sel.red { color: #ff8a80; }
+  input[type="number"] { width: 90px; cursor: text; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .seg button { border: none; border-radius: 0; background: #1a1a1a; padding: 6px 12px; }
+  .seg button.on { background: var(--accent); color: #07210f; font-weight: 700; }
+  .seg button.t0.on { background: #8ff0a8; } .seg button.t1.on { background: #ffb0a6; color: #2a0a06; }
+  .hint { color: var(--dim); font-size: 0.85em; }
+  .manilha-tag { color: var(--gold); font-weight: 700; }
+  .vaza-block { border: 1px dashed var(--border); border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+  .vaza-block .vhead { color: var(--blue); font-size: 0.85em; margin-bottom: 6px; }
+  .slot { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; margin-right: 8px; }
+  .slot .seat-lbl { font-size: 0.72em; color: var(--dim); }
+  .slot .seat-lbl.hero { color: var(--accent); font-weight: 700; }
+  #btn-calc { background: #14532d; color: #8ff0a8; border-color: #2e9d5b; font-weight: 700; padding: 10px 22px; font-size: 1.05em; }
+  #btn-calc:hover { border-color: var(--accent); color: var(--accent); }
+  .err { color: var(--red); margin: 8px 0; min-height: 18px; font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; margin: 6px 0; font-size: 0.92em; }
+  th, td { text-align: right; padding: 4px 10px; border-bottom: 1px solid #222; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { color: var(--dim); font-weight: 600; }
+  td.win { color: var(--accent); } td.tie { color: var(--gold); } td.loss { color: var(--red); }
+  tr.best td { background: rgba(126,231,135,0.08); }
+  tr.best td:first-child::after { content: " ★"; color: var(--gold); }
+  .note { color: var(--dim); font-size: 0.85em; margin: 6px 0; }
+  .badge { display: inline-block; background: #0e2a1a; color: #8ff0a8; border: 1px solid #2e9d5b; border-radius: 12px; padding: 1px 10px; font-size: 0.82em; }
+  .badge.warn { background: #2a1c0a; color: var(--gold); border-color: #6b4f12; }
+  code { color: #ffd27a; }
+</style>
+</head>
+<body>
+  <h1>🧮 Calculadora de chance de vitória da mão</h1>
+  <p class="sub">
+    Truco Paulista 2×2 · estima a chance de a sua equipe <b>vencer a mão (3 vazas)</b>,
+    jogada até o fim <b>sem truco</b>, a partir das cartas que você já viu.
+    Parceiros cruzados: assentos <b>0+2</b> (equipe 1) vs <b>1+3</b> (equipe 2).
+  </p>
+
+  <div class="panel">
+    <h2>Cenário</h2>
+
+    <div class="row">
+      <span class="lbl">Vira (define a manilha)</span>
+      <span id="vira-slot"></span>
+      <span id="manilha-out" class="manilha-tag"></span>
+    </div>
+
+    <div class="row">
+      <span class="lbl">Seu assento (herói)</span>
+      <span id="hero-seg" class="seg"></span>
+    </div>
+
+    <div class="row">
+      <span class="lbl">Quem é a “mão” (abriu a 1ª vaza)</span>
+      <span id="mao-seg" class="seg"></span>
+    </div>
+
+    <div class="row">
+      <span class="lbl">Vazas já completas</span>
+      <select id="num-completed"><option>0</option><option>1</option><option>2</option></select>
+      <span class="hint">cada vaza completa tem 4 cartas, na ordem em que foram jogadas</span>
+    </div>
+
+    <div id="completed-wrap"></div>
+
+    <div class="row">
+      <span class="lbl">Cartas já jogadas na vaza atual</span>
+      <select id="num-current"><option>0</option><option>1</option><option>2</option><option>3</option></select>
+    </div>
+    <div id="current-wrap"></div>
+
+    <h3>Sua mão (cartas que você ainda tem)</h3>
+    <div id="hand-wrap" class="row"></div>
+    <div id="turn-out" class="note"></div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <span class="lbl">Amostras (Monte Carlo)</span>
+      <input type="number" id="samples" value="3000" min="100" step="100" />
+      <span class="lbl" style="min-width:60px">Semente</span>
+      <input type="number" id="seed" value="42" />
+    </div>
+    <div class="row">
+      <button id="btn-calc">Calcular ▶</button>
+      <span id="status" class="hint"></span>
+    </div>
+    <div id="err" class="err"></div>
+  </div>
+
+  <div id="results"></div>
+
+  <script src="truco.bundle.js"></script>
+  <script>
+  (function () {
+    "use strict";
+    const $ = (id) => document.getElementById(id);
+    const T = window.Truco;
+    if (!T || !T.calcScenario) {
+      document.body.insertAdjacentHTML("beforeend",
+        "<p class='err'>Bundle não encontrado. Rode <code>npm run build:web</code> e abra este arquivo na pasta <code>web/</code>.</p>");
+      return;
+    }
+    const RULES = T.TRUCO_PAULISTA;
+    const N = RULES.numPlayers; // 4
+    const TEAM = Array.from({ length: N }, (_, s) => s % 2);
+
+    const RANKS = ["4", "5", "6", "7", "Q", "J", "K", "A", "2", "3"];
+    const SUITS = [
+      { v: "ouros", sym: "♦", red: true },
+      { v: "espadas", sym: "♠", red: false },
+      { v: "copas", sym: "♥", red: true },
+      { v: "paus", sym: "♣", red: false },
+    ];
+    const SUITSYM = Object.fromEntries(SUITS.map((s) => [s.v, s]));
+    const fmt = (c) => (c ? (T.fmtCard ? T.fmtCard(c) : c.rank + SUITSYM[c.suit].sym) : "—");
+    const pct = (x) => (100 * x).toFixed(1) + "%";
+
+    function parseCard(v) {
+      if (!v) return null;
+      const i = v.indexOf("-");
+      return { rank: v.slice(0, i), suit: v.slice(i + 1) };
+    }
+    const cardVal = (c) => c.rank + "-" + c.suit;
+
+    // ----- estado -----
+    const state = {
+      heroSeat: 0,
+      maoSeat: 0,
+      vira: "4-ouros",
+      numCompleted: 0,
+      completed: [],      // completed[i] = array de 4 strings (ou "")
+      numCurrent: 0,
+      current: [],        // strings
+      hand: ["A-copas", "A-espadas", "2-ouros"],
+    };
+
+    // ----- selects de carta -----
+    function buildCardSelect(value, onChange) {
+      const sel = document.createElement("select");
+      sel.className = "card-sel";
+      const blank = document.createElement("option");
+      blank.value = ""; blank.textContent = "—";
+      sel.appendChild(blank);
+      for (const r of RANKS) {
+        for (const s of SUITS) {
+          const o = document.createElement("option");
+          o.value = r + "-" + s.v;
+          o.textContent = r + s.sym;
+          sel.appendChild(o);
+        }
+      }
+      sel.value = value || "";
+      const paint = () => {
+        const c = parseCard(sel.value);
+        sel.classList.toggle("red", !!(c && SUITSYM[c.suit].red));
+      };
+      paint();
+      sel.addEventListener("change", () => { paint(); onChange(sel.value); });
+      return sel;
+    }
+
+    function slot(label, isHero, value, onChange) {
+      const wrap = document.createElement("span");
+      wrap.className = "slot";
+      const lbl = document.createElement("span");
+      lbl.className = "seat-lbl" + (isHero ? " hero" : "");
+      lbl.textContent = label;
+      wrap.appendChild(lbl);
+      wrap.appendChild(buildCardSelect(value, onChange));
+      return wrap;
+    }
+
+    // ----- segmented de assento -----
+    function buildSeatSeg(container, current, onPick) {
+      container.innerHTML = "";
+      for (let s = 0; s < N; s++) {
+        const b = document.createElement("button");
+        b.textContent = String(s);
+        b.className = "t" + (s % 2) + (s === current ? " on" : "");
+        b.onclick = () => onPick(s);
+        container.appendChild(b);
+      }
+    }
+
+    // ----- líderes derivados (rotação do vencedor) -----
+    function leadersOf() {
+      const vira = parseCard(state.vira);
+      let leader = state.maoSeat;
+      const leaders = [];
+      for (let i = 0; i < state.numCompleted; i++) {
+        leaders.push(leader);
+        const cards = state.completed[i] || [];
+        if (!vira || cards.length < N || cards.some((c) => !c)) {
+          for (let j = i + 1; j < state.numCompleted; j++) leaders.push(leader);
+          return { leaders, currentLeader: leader, resolved: false };
+        }
+        const plays = cards.map((cv, k) => ({ seat: (leader + k) % N, card: parseCard(cv) }));
+        const res = T.resolveVaza(plays, vira, TEAM, RULES);
+        leader = (res.winningSeat != null) ? res.winningSeat : leader;
+      }
+      return { leaders, currentLeader: leader, resolved: true };
+    }
+
+    function heroPlayedInCurrent(currentLeader) {
+      const heroPos = ((state.heroSeat - currentLeader) % N + N) % N;
+      return state.numCurrent > heroPos;
+    }
+
+    // ----- render do formulário -----
+    function renderForm() {
+      // tamanhos de arrays
+      while (state.completed.length < state.numCompleted) state.completed.push(["", "", "", ""]);
+      state.completed.length = state.numCompleted;
+      for (let i = 0; i < state.numCompleted; i++) {
+        const a = state.completed[i];
+        while (a.length < N) a.push("");
+        a.length = N;
+      }
+      while (state.current.length < state.numCurrent) state.current.push("");
+      state.current.length = state.numCurrent;
+
+      // vira
+      $("vira-slot").innerHTML = "";
+      $("vira-slot").appendChild(buildCardSelect(state.vira, (v) => { state.vira = v; renderForm(); }));
+      const viraCard = parseCard(state.vira);
+      $("manilha-out").textContent = viraCard ? "manilha = " + T.manilhaRank(viraCard, RULES) : "";
+
+      buildSeatSeg($("hero-seg"), state.heroSeat, (s) => { state.heroSeat = s; renderForm(); });
+      buildSeatSeg($("mao-seg"), state.maoSeat, (s) => { state.maoSeat = s; renderForm(); });
+
+      const { leaders, currentLeader } = leadersOf();
+
+      // vazas completas
+      const cw = $("completed-wrap"); cw.innerHTML = "";
+      for (let i = 0; i < state.numCompleted; i++) {
+        const block = document.createElement("div"); block.className = "vaza-block";
+        const head = document.createElement("div"); head.className = "vhead";
+        head.textContent = "Vaza " + (i + 1) + " — abre no assento " + leaders[i] + " (ordem de jogo →)";
+        block.appendChild(head);
+        for (let k = 0; k < N; k++) {
+          const seat = (leaders[i] + k) % N;
+          const isHero = seat === state.heroSeat;
+          block.appendChild(slot(
+            "assento " + seat + (isHero ? " (você)" : ""),
+            isHero, state.completed[i][k],
+            (v) => { state.completed[i][k] = v; renderForm(); },
+          ));
+        }
+        cw.appendChild(block);
+      }
+
+      // vaza atual
+      const curw = $("current-wrap"); curw.innerHTML = "";
+      if (state.numCurrent > 0) {
+        const block = document.createElement("div"); block.className = "vaza-block";
+        const head = document.createElement("div"); head.className = "vhead";
+        head.textContent = "Vaza atual — abre no assento " + currentLeader + " (ordem de jogo →)";
+        block.appendChild(head);
+        for (let k = 0; k < state.numCurrent; k++) {
+          const seat = (currentLeader + k) % N;
+          const isHero = seat === state.heroSeat;
+          block.appendChild(slot(
+            "assento " + seat + (isHero ? " (você)" : ""),
+            isHero, state.current[k],
+            (v) => { state.current[k] = v; renderForm(); },
+          ));
+        }
+        curw.appendChild(block);
+      }
+
+      // mão do herói: nº de cartas = 3 - vazas em que o herói já jogou
+      const heroPlayed = state.numCompleted + (heroPlayedInCurrent(currentLeader) ? 1 : 0);
+      const handCount = Math.max(0, RULES.cardsPerPlayer - heroPlayed);
+      while (state.hand.length < handCount) state.hand.push("");
+      state.hand.length = handCount;
+      const hw = $("hand-wrap"); hw.innerHTML = "";
+      if (handCount === 0) {
+        hw.innerHTML = "<span class='hint'>Você já jogou todas as cartas neste cenário.</span>";
+      } else {
+        for (let k = 0; k < handCount; k++) {
+          hw.appendChild(slot("carta " + (k + 1), true, state.hand[k],
+            (v) => { state.hand[k] = v; renderForm(); }));
+        }
+      }
+
+      // vez de quem?
+      const acting = (currentLeader + state.numCurrent) % N;
+      const heroTurn = acting === state.heroSeat;
+      $("turn-out").innerHTML = heroTurn
+        ? "<span class='badge'>É a sua vez (assento " + acting + ") — double/single-dummy disponíveis.</span>"
+        : "<span class='badge warn'>Vez do assento " + acting + " — só o rollout por política será mostrado.</span>";
+    }
+
+    $("num-completed").onchange = () => { state.numCompleted = +$("num-completed").value; renderForm(); };
+    $("num-current").onchange = () => { state.numCurrent = +$("num-current").value; renderForm(); };
+
+    // ----- montar o cenário p/ a API -----
+    function buildScenario() {
+      const toCards = (arr) => arr.map(parseCard);
+      return {
+        seat: state.heroSeat,
+        maoSeat: state.maoSeat,
+        vira: parseCard(state.vira),
+        hand: toCards(state.hand),
+        completedVazas: state.completed.map(toCards),
+        currentVaza: toCards(state.current),
+      };
+    }
+
+    function anyBlank() {
+      if (!state.vira) return true;
+      if (state.hand.some((c) => !c)) return true;
+      if (state.completed.some((v) => v.some((c) => !c))) return true;
+      if (state.current.some((c) => !c)) return true;
+      return false;
+    }
+
+    // ----- render dos resultados -----
+    function policiesTable(policies, order) {
+      let h = "<table><thead><tr><th>política</th><th>vitória</th><th>empate</th><th>derrota</th></tr></thead><tbody>";
+      for (const p of order) {
+        const e = policies[p]; if (!e) continue;
+        h += "<tr><td>" + p + "</td><td class='win'>" + pct(e.winProb) +
+          "</td><td class='tie'>" + pct(e.tieProb) + "</td><td class='loss'>" + pct(e.lossProb) + "</td></tr>";
+      }
+      h += "</tbody></table>";
+      return h;
+    }
+
+    function cardTable(result) {
+      let h = "<table><thead><tr><th>carta agora</th><th>vitória</th><th>empate</th><th>derrota</th></tr></thead><tbody>";
+      for (const c of result.cards) {
+        const best = c.card.rank === result.bestCard.rank && c.card.suit === result.bestCard.suit;
+        h += "<tr class='" + (best ? "best" : "") + "'><td>" + fmt(c.card) + "</td><td class='win'>" +
+          pct(c.winProb) + "</td><td class='tie'>" + pct(c.tieProb) + "</td><td class='loss'>" + pct(c.lossProb) + "</td></tr>";
+      }
+      h += "</tbody></table>";
+      return h;
+    }
+
+    function renderResults(res) {
+      const order = T.CALC_POLICIES;
+      const anyE = res.policies[order[0]];
+      const methodNote = anyE
+        ? "<div class='note'>método: <code>" + anyE.method + "</code> · " + anyE.samples + " mundos/amostras · manilha = <span class='manilha-tag'>" + res.manilha + "</span></div>"
+        : "";
+      let h = "";
+
+      h += "<div class='panel'><h2>Rollout por política (realista, depende da inteligência assumida)</h2>" +
+        methodNote + policiesTable(res.policies, order) +
+        "<div class='note'>Cada política assume que <b>todos</b> jogam o resto da mão com aquela inteligência. " +
+        "“random” é o piso; “melhorada_5” é a IA mais forte do projeto.</div></div>";
+
+      if (res.heroToPlay && res.doubleDummy) {
+        h += "<div class='panel'><h2>Double-dummy (jogo ótimo, cartas à vista — limite superior)</h2>" +
+          "<div class='note'>Não depende de política: assume jogo perfeito de todos com clarividência. " +
+          "É um teto — na prática não dá pra enxergar as cartas dos outros.</div>" +
+          cardTable(res.doubleDummy) +
+          "<div class='note'>Melhor carta: <b>" + fmt(res.doubleDummy.bestCard) + "</b> (vitória " + pct(res.doubleDummy.winProb) + ")</div></div>";
+      }
+
+      if (res.heroToPlay && res.singleDummy) {
+        h += "<div class='panel'><h2>Single-dummy (melhor carta agora, sem clarividência · oponentes = melhorada_5)</h2>" +
+          cardTable(res.singleDummy) +
+          "<div class='note'>Melhor carta: <b>" + fmt(res.singleDummy.bestCard) + "</b> (vitória " + pct(res.singleDummy.winProb) + ")</div></div>";
+      }
+
+      if (!res.heroToPlay) {
+        h += "<div class='panel'><div class='note'>Não é a sua vez de jogar (assento a jogar = " + res.acting +
+          "), então double-dummy e single-dummy (que recomendam <i>a sua</i> carta) não se aplicam aqui.</div></div>";
+      }
+
+      $("results").innerHTML = h;
+    }
+
+    $("btn-calc").onclick = async () => {
+      $("err").textContent = "";
+      if (anyBlank()) {
+        $("err").textContent = "Preencha todas as cartas (vira, sua mão e todas as cartas jogadas) antes de calcular.";
+        return;
+      }
+      const samples = Math.max(100, +$("samples").value || 3000);
+      const seed = +$("seed").value || 42;
+      $("status").textContent = "calculando…";
+      $("btn-calc").disabled = true;
+      try {
+        // cede um frame pro navegador pintar o "calculando…"
+        await new Promise((r) => setTimeout(r, 0));
+        const res = await T.calcScenario(buildScenario(), { samples, seed });
+        renderResults(res);
+        $("status").textContent = "";
+      } catch (e) {
+        $("results").innerHTML = "";
+        $("err").textContent = "Erro: " + (e && e.message ? e.message : String(e));
+        $("status").textContent = "";
+      } finally {
+        $("btn-calc").disabled = false;
+      }
+    };
+
+    renderForm();
+  })();
+  </script>
+</body>
+</html>
