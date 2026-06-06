@@ -8,7 +8,9 @@
 
 import { Card, cardToString } from "../core/types.js";
 import {
+  BET_FEATURE_COUNT,
   BET_FEATURE_NAMES,
+  CARD_FEATURE_COUNT,
   CARD_FEATURE_NAMES,
   betFeatures,
   cardFeatures,
@@ -16,6 +18,7 @@ import {
 } from "./features.js";
 import { Genome } from "./genome.js";
 import { PlayerView } from "./player.js";
+import { BucketContribution, cardScoreParts, situationScoreParts } from "./score.js";
 
 /** Contribuicao de uma feature ao score: contribution = weight * value. */
 export interface Contribution {
@@ -80,6 +83,20 @@ function build(
   return { score, contributions };
 }
 
+/** Converte contribuicoes de faixa em Contribution (indice estavel por variavel). */
+function bucketToContribs(
+  buckets: readonly BucketContribution[],
+  baseIndex: number,
+): Contribution[] {
+  return buckets.map((b, v) => ({
+    index: baseIndex + v,
+    name: `${b.name}[b${b.bucket}]`,
+    value: b.value,
+    weight: b.weight,
+    contribution: b.weight, // indicador da faixa ativa = 1 -> contribuicao = peso
+  }));
+}
+
 /** Decompoe a escolha de carta: score e contribuicoes por carta candidata. */
 export function explainCardChoice(
   genome: Genome,
@@ -87,12 +104,13 @@ export function explainCardChoice(
 ): CardChoiceExplanation {
   const pre = precompute(view);
   const cards: CardExplanation[] = view.hand.map((card) => {
-    const { score, contributions } = build(
-      CARD_FEATURE_NAMES,
-      genome.cardWeights,
-      cardFeatures(view, card, pre),
-    );
-    return { card, score, contributions, chosen: false };
+    const lin = build(CARD_FEATURE_NAMES, genome.cardWeights, cardFeatures(view, card, pre));
+    const parts = cardScoreParts(genome, view, card, pre);
+    const contributions = [
+      ...lin.contributions,
+      ...bucketToContribs(parts.buckets, CARD_FEATURE_COUNT),
+    ];
+    return { card, score: parts.score, contributions, chosen: false };
   });
   let chosenIndex = 0;
   for (let i = 1; i < cards.length; i++) {
@@ -108,13 +126,14 @@ export function explainBetting(
   view: PlayerView,
 ): BettingExplanation {
   const pre = precompute(view);
-  const { score, contributions } = build(
-    BET_FEATURE_NAMES,
-    genome.betWeights,
-    betFeatures(view, pre),
-  );
+  const lin = build(BET_FEATURE_NAMES, genome.betWeights, betFeatures(view, pre));
+  const parts = situationScoreParts(genome, view, pre);
+  const contributions = [
+    ...lin.contributions,
+    ...bucketToContribs(parts.buckets, BET_FEATURE_COUNT),
+  ];
   return {
-    s: score,
+    s: parts.score,
     contributions,
     thrCall: genome.thrCall,
     thrAccept: genome.thrAccept,

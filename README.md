@@ -29,9 +29,9 @@ configurável para trocar de variante e de formato.
     próprias cartas), vale 1, sem truco.
 - Jogadores **humanos e/ou bots**, escolhidos antes da partida.
 - **Bots com inteligência evoluída** (algoritmo genético): `inocente`
-  (heurística), `melhorada_1`, `melhorada_2` e a **`melhorada_3`** — treinada por
-  **round-robin de pior caso** contra o pool, ela **ganha de todos os perfis**
-  (pior matchup ~68%). É a mais forte.
+  (heurística), `melhorada_1/2/3` e a **`melhorada_4`** — **não-linear** (features
+  em faixas baixo/médio/alto, com limiares evolutivos e parcimônia). É a mais
+  forte: no round-robin de pior caso **bate até a m3** (~63% em sementes novas).
 - Formatos: duplas (2v2), mano a mano (1v1) e trios (3v3).
 
 ## Como rodar
@@ -94,20 +94,25 @@ src/
     bot.ts           # bot básico por heurística ("inocente")
     evolvedBot.ts    # bot com inteligência evoluída (usa um genoma)
     features.ts      # avaliação contextual (carta + contexto da partida)
-    genome.ts        # genoma: pesos/limiares + (de)serialização
-    personalities.ts # registro: inocente, melhorada_1...
+    buckets.ts       # config das features em faixas (baixo/médio/alto)
+    score.ts         # scorer: parte linear + contribuição de faixa; TV/granularidade
+    genome.ts        # genoma: pesos/limiares + faixas + (de)serialização/migração
+    explain.ts       # decompõe a decisão em contribuições (inclui faixas)
+    personalities.ts # registro: inocente, melhorada_1..4
     humanCli.ts      # jogador humano via terminal
   training/
     arena.ts     # partidas em massa (sementes comuns + espelhamento); evaluateVsPool
     ga.ts        # algoritmo genético (seleção, crossover, mutação)
     train.ts     # evolui em escada (fitness = média vs pool)
     train-rr.ts  # round-robin: fitness = pior caso vs pool fixo (melhorada_3)
+    train-rr4.ts # round-robin não-linear (faixas + parcimônia) (melhorada_4)
     evaluate.ts  # mede força (vs inocente, ou genoma vs genoma) em sementes novas
     rng.ts       # RNG determinístico do treino
   genomes/
     melhorada_1.json  # genomas treinados (versionados; usados no jogo)
     melhorada_2.json
     melhorada_3.json
+    melhorada_4.json
   cli/
     setup.ts     # configuração pré-partida
     render.ts    # formatação para o terminal
@@ -141,9 +146,11 @@ sementes** (baralhos) e em **partidas espelhadas**.
 POP=60 GENS=40 GAMES=300 RUNGS=2 npm run train
 # Round-robin (fitness = PIOR CASO vs pool fixo {inocente,m1,m2}): gera melhorada_3
 POP=80 GENS=50 GAMES=150 npm run train:rr
+# Round-robin NAO-LINEAR (faixas + parcimonia) vs {inocente,m1,m2,m3}: gera melhorada_4
+POP=70 GENS=45 GAMES=120 LAMBDA=0.01 npm run train:rr4
 # Avaliar em sementes novas (genoma vs inocente, ou genoma vs genoma)
-GAMES=800 npm run evaluate src/genomes/melhorada_3.json
-GAMES=800 npm run evaluate src/genomes/melhorada_3.json src/genomes/melhorada_1.json
+GAMES=800 npm run evaluate src/genomes/melhorada_4.json
+GAMES=800 npm run evaluate src/genomes/melhorada_4.json src/genomes/melhorada_3.json
 ```
 
 Resultados (1600 partidas espelhadas, sementes novas):
@@ -156,15 +163,25 @@ Resultados (1600 partidas espelhadas, sementes novas):
 | **melhorada_3** vs inocente | **~69%** |
 | **melhorada_3** vs melhorada_1 | **~68%** |
 | **melhorada_3** vs melhorada_2 | **~85%** |
+| **melhorada_4** vs inocente | **~70%** |
+| **melhorada_4** vs melhorada_1 | **~64%** |
+| **melhorada_4** vs melhorada_2 | **~91%** |
+| **melhorada_4** vs melhorada_3 | **~63%** |
 
 A `melhorada_2` exibiu **não-transitividade** (bate a m1 mas perde p/ inocente):
 treinada com fitness = *média* contra um pool misto, especializou-se em vencer o
 campeão anterior. A `melhorada_3` corrige isso com **fitness de pior caso**
-(o *mínimo* das taxas contra cada membro do pool fixo) — assim é obrigada a ser
-forte contra **todos**, e **ganha de todos os perfis**.
+(o *mínimo* das taxas contra cada membro do pool fixo) — assim ganha de todos.
+
+A `melhorada_4` testa **não-linearidade** ao estilo GTO: cada variável vira
+**faixas (baixo/médio/alto)** com **limiares evolutivos** e uma **penalidade de
+parcimônia** (variação total) que deixa a *granularidade* emergir — o GA decide
+quantas faixas cada variável usa. Resultado: a maioria usou 4 faixas (`pWin`,
+`forcaRelativa`, `forcaMedia`, `difPlacar`, `valorEmJogo`), e `fracMaisFortes`
+colapsou para 2 — e a m4 **supera a m3** (a não-linearidade agregou valor real).
 
 No HTML e no CLI dá para escolher a inteligência de cada equipe (inocente ×
-melhorada_1 × melhorada_2 × melhorada_3) e assistir à diferença. Há também um **modo
+melhorada_1…4) e assistir à diferença. Há também um **modo
 "explicar jogada"** (toggle no HTML, `npm run demo:explica` no CLI) que mostra,
 a cada decisão da Melhorada, as features que mais pesaram — ex.: *"jogou 6♣:
 cobreParceiro +0.81"* (escolheu não cobrir o parceiro = amarrar).

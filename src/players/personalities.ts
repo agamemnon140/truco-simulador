@@ -8,6 +8,7 @@
 import melhorada1Json from "../genomes/melhorada_1.json";
 import melhorada2Json from "../genomes/melhorada_2.json";
 import melhorada3Json from "../genomes/melhorada_3.json";
+import melhorada4Json from "../genomes/melhorada_4.json";
 import { Rng } from "../core/deck.js";
 import { BotPlayer } from "./bot.js";
 import { EvolvedBotPlayer } from "./evolvedBot.js";
@@ -15,7 +16,12 @@ import { DecisionInfo } from "./explain.js";
 import { parseGenome } from "./genome.js";
 import { Player } from "./player.js";
 
-export type PersonalityId = "inocente" | "melhorada_1" | "melhorada_2" | "melhorada_3";
+export type PersonalityId =
+  | "inocente"
+  | "melhorada_1"
+  | "melhorada_2"
+  | "melhorada_3"
+  | "melhorada_4";
 
 export interface Personality {
   id: PersonalityId;
@@ -28,6 +34,7 @@ export interface Personality {
 const melhorada1Genome = parseGenome(melhorada1Json);
 const melhorada2Genome = parseGenome(melhorada2Json);
 const melhorada3Genome = parseGenome(melhorada3Json);
+const melhorada4Genome = parseGenome(melhorada4Json);
 
 export const PERSONALITIES: Personality[] = [
   {
@@ -53,9 +60,16 @@ export const PERSONALITIES: Personality[] = [
   {
     id: "melhorada_3",
     label: "Melhorada 3",
-    description: "Round-robin (pior caso) vs o pool. A mais forte: ganha de TODAS (pior matchup ~68%).",
+    description: "Round-robin (pior caso) vs o pool. Ganha de inocente/m1/m2 (pior matchup ~68%).",
     create: (name, rng, onDecision) =>
       new EvolvedBotPlayer(name, melhorada3Genome, rng, onDecision),
+  },
+  {
+    id: "melhorada_4",
+    label: "Melhorada 4",
+    description: "Nao-linear (features em faixas) round-robin. A mais forte: bate ate a m3 (~63%).",
+    create: (name, rng, onDecision) =>
+      new EvolvedBotPlayer(name, melhorada4Genome, rng, onDecision),
   },
 ];
 

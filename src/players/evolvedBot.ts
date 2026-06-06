@@ -18,12 +18,9 @@ import {
   explainBetting,
   explainCardChoice,
 } from "./explain.js";
-import {
-  betFeatures,
-  cardFeatures,
-  precompute,
-} from "./features.js";
+import { precompute } from "./features.js";
 import { Genome } from "./genome.js";
+import { cardScore, situationScore } from "./score.js";
 import {
   Action,
   MaoDeOnzeContext,
@@ -33,12 +30,6 @@ import {
   Proposal,
   RaiseResponse,
 } from "./player.js";
-
-function dot(weights: readonly number[], features: readonly number[]): number {
-  let s = 0;
-  for (let i = 0; i < weights.length; i++) s += weights[i]! * features[i]!;
-  return s;
-}
 
 function sigmoid(x: number): number {
   return 1 / (1 + Math.exp(-x));
@@ -53,10 +44,9 @@ export class EvolvedBotPlayer implements Player {
     private readonly onDecision?: (info: DecisionInfo) => void,
   ) {}
 
-  /** Score S da situacao para decisoes de aposta. */
+  /** Score S da situacao para decisoes de aposta (linear + faixas). */
   private situationScore(view: PlayerView): number {
-    const pre = precompute(view);
-    return dot(this.genome.betWeights, betFeatures(view, pre));
+    return situationScore(this.genome, view, precompute(view));
   }
 
   async chooseAction(view: PlayerView, canRaise: boolean): Promise<Action> {
@@ -100,7 +90,7 @@ export class EvolvedBotPlayer implements Player {
     if (view.blind || hand.length === 1) return hand[0]!;
 
     const pre = precompute(view);
-    const scores = hand.map((c) => dot(this.genome.cardWeights, cardFeatures(view, c, pre)));
+    const scores = hand.map((c) => cardScore(this.genome, view, c, pre));
 
     const temp = Math.max(0, this.genome.playTemp);
     if (temp <= 1e-6) {

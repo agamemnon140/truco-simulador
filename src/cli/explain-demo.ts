@@ -5,7 +5,7 @@
  * Uso: npm run demo:explica
  */
 
-import melhorada1 from "../genomes/melhorada_1.json";
+import melhorada4 from "../genomes/melhorada_4.json";
 import { MatchObserver, playMatch } from "../core/match.js";
 import { TRUCO_PAULISTA } from "../core/rules.js";
 import { BotPlayer } from "../players/bot.js";
@@ -21,7 +21,7 @@ import { seededRng } from "../training/rng.js";
 import { print } from "./io.js";
 import { fmtCard, teamName } from "./render.js";
 
-const genome = parseGenome(melhorada1);
+const genome = parseGenome(melhorada4);
 // Partida curta (ate 4 pontos) para a saida caber.
 const rules = { ...TRUCO_PAULISTA, pointsToWin: 4 };
 const names = ["Melhorada A1", "Inocente B1", "Melhorada A2", "Inocente B2"];

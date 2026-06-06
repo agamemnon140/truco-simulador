@@ -98,7 +98,8 @@
     <div class="control">
       Equipe 1
       <select id="botA">
-        <option value="melhorada_3" selected>Melhorada 3</option>
+        <option value="melhorada_4" selected>Melhorada 4</option>
+        <option value="melhorada_3">Melhorada 3</option>
         <option value="melhorada_2">Melhorada 2</option>
         <option value="melhorada_1">Melhorada 1</option>
         <option value="inocente">Inocente</option>
@@ -109,6 +110,7 @@
         <option value="melhorada_1">Melhorada 1</option>
         <option value="melhorada_2">Melhorada 2</option>
         <option value="melhorada_3">Melhorada 3</option>
+        <option value="melhorada_4">Melhorada 4</option>
       </select>
     </div>
     <div class="control">
@@ -762,6 +764,107 @@ var Truco = (() => {
     playTemp: 0.005161231686963019
   };
 
+  // src/genomes/melhorada_4.json
+  var melhorada_4_default = {
+    cardWeights: [
+      -0.9734242666737752,
+      -0.38299549021014323,
+      1.2741312815690071,
+      1.6659563867070486,
+      -0.5780774336706427,
+      -0.10924197550960037,
+      -0.6842587621418892,
+      -1.8539148722022234,
+      0.9635608622504561,
+      -0.6340666766289855,
+      -0.23254128901402144,
+      -0.2001646835044764,
+      0.2355730615108909,
+      -0.11315815440720872,
+      -0.6457507122488508,
+      -1.0791133747851782,
+      -0.3561594562119179,
+      0.528110211813976,
+      0,
+      0.024660049444437088
+    ],
+    betWeights: [
+      -0.517630620371592,
+      1.709974169979617,
+      1.3513221798057715,
+      2.18919408499585,
+      0.7542154401446286,
+      -0.17669196043986563,
+      -0.6078075280184025,
+      -0.5870389070436766,
+      1.3401803564224046,
+      -0.30203262124442554,
+      0.7535942366891537,
+      0.6140374220160373,
+      -0.7068571724899022,
+      0.0295263416949994,
+      0.06865829783284376,
+      -0.5800347668996203,
+      0.880426939820059,
+      0.4771636022442203
+    ],
+    thrCall: 1.1912638895914758,
+    thrAccept: 0.7825738185398353,
+    thrRaise: 1.6328746456778092,
+    pBluff: -2.3173098535036174,
+    playTemp: 0.16634355428470296,
+    cardBucketThresholds: [
+      0.7394416229412754,
+      -0.6242468593081935,
+      0.6201091220979353,
+      -0.006277585916141859,
+      0.4992975869580281,
+      0.9176208463170513,
+      0.6577572065973594,
+      0.501328432199208,
+      0.7797613831992927
+    ],
+    cardBucketWeights: [
+      0.1987764784607848,
+      -0.15990470249869515,
+      0.03691170526427203,
+      -0.10296209072694182,
+      -0.16981662827844754,
+      -0.01767976195740694,
+      -0.041093023483813704,
+      -0.06759781390878054,
+      0.38237763242509015,
+      0.28534553716546057,
+      -0.2476273307014858,
+      -0.18942527107471147
+    ],
+    betBucketThresholds: [
+      0.240868774660282,
+      0.302815759946163,
+      0.5491092699034624,
+      0.12838510672893433,
+      0.25677039657515593,
+      -0.5588687386429264,
+      0.4649854487652979,
+      0.4526305983522664,
+      0.9024653218038117
+    ],
+    betBucketWeights: [
+      -0.0694429327917203,
+      0.03052499625243548,
+      -0.07085922695256887,
+      0.04338522969017691,
+      0.34561216078378804,
+      0.4222959352846311,
+      0.3399511061671423,
+      0.11740861737739418,
+      -0.5002593331443941,
+      0.2855723319007034,
+      -0.10903765245461222,
+      -0.22123105693687042
+    ]
+  };
+
   // src/players/bot.ts
   function maxStrength(view) {
     return view.rules.rankOrder.length + view.rules.manilhaSuitOrder.length - 1;
@@ -1045,6 +1148,84 @@ var Truco = (() => {
     return [...strength, ...pre.context];
   }
 
+  // src/players/buckets.ts
+  var N_BUCKETS = 4;
+  var CARD_BUCKET_VARS = [
+    { name: "pWin", index: 3, min: 0, max: 1 },
+    { name: "fracMaisFortes", index: 4, min: 0, max: 1 },
+    { name: "forcaRelativa", index: 6, min: 0, max: 1 }
+  ];
+  var BET_BUCKET_VARS = [
+    { name: "forcaMedia", index: 1, min: 0, max: 1 },
+    { name: "difPlacar", index: 15, min: -1, max: 1 },
+    { name: "valorEmJogo", index: 17, min: 0, max: 1 }
+  ];
+  var THRESH_PER_VAR = N_BUCKETS - 1;
+  var WEIGHTS_PER_VAR = N_BUCKETS;
+  var CARD_THRESH_COUNT = CARD_BUCKET_VARS.length * THRESH_PER_VAR;
+  var CARD_BUCKET_W_COUNT = CARD_BUCKET_VARS.length * WEIGHTS_PER_VAR;
+  var BET_THRESH_COUNT = BET_BUCKET_VARS.length * THRESH_PER_VAR;
+  var BET_BUCKET_W_COUNT = BET_BUCKET_VARS.length * WEIGHTS_PER_VAR;
+  function bucketIndex(raw, min, max, thresholds) {
+    const span = max - min || 1;
+    const x = Math.min(1, Math.max(0, (raw - min) / span));
+    const sorted = [...thresholds].sort((a, b) => a - b);
+    let i = 0;
+    for (const t of sorted) {
+      if (x >= t) i++;
+      else break;
+    }
+    return i;
+  }
+
+  // src/players/score.ts
+  function dot(weights, features) {
+    let s = 0;
+    for (let i = 0; i < weights.length; i++) s += weights[i] * features[i];
+    return s;
+  }
+  function bucketContribs(featureValues, vars, thresholds, weights) {
+    const out = [];
+    for (let v = 0; v < vars.length; v++) {
+      const cfg = vars[v];
+      const raw = featureValues[cfg.index];
+      const thr = thresholds.slice(v * THRESH_PER_VAR, (v + 1) * THRESH_PER_VAR);
+      const b = bucketIndex(raw, cfg.min, cfg.max, thr);
+      out.push({ name: cfg.name, bucket: b, value: raw, weight: weights[v * N_BUCKETS + b] });
+    }
+    return out;
+  }
+  function cardScoreParts(genome, view, card, pre) {
+    const feats = cardFeatures(view, card, pre);
+    const linear = dot(genome.cardWeights, feats);
+    const buckets = bucketContribs(
+      feats,
+      CARD_BUCKET_VARS,
+      genome.cardBucketThresholds,
+      genome.cardBucketWeights
+    );
+    const bucketSum = buckets.reduce((s, b) => s + b.weight, 0);
+    return { score: linear + bucketSum, linear, buckets };
+  }
+  function situationScoreParts(genome, view, pre) {
+    const feats = betFeatures(view, pre);
+    const linear = dot(genome.betWeights, feats);
+    const buckets = bucketContribs(
+      feats,
+      BET_BUCKET_VARS,
+      genome.betBucketThresholds,
+      genome.betBucketWeights
+    );
+    const bucketSum = buckets.reduce((s, b) => s + b.weight, 0);
+    return { score: linear + bucketSum, linear, buckets };
+  }
+  function cardScore(genome, view, card, pre) {
+    return cardScoreParts(genome, view, card, pre).score;
+  }
+  function situationScore(genome, view, pre) {
+    return situationScoreParts(genome, view, pre).score;
+  }
+
   // src/players/explain.ts
   function build(names, weights, values) {
     const contributions = [];
@@ -1062,15 +1243,26 @@ var Truco = (() => {
     }
     return { score, contributions };
   }
+  function bucketToContribs(buckets, baseIndex) {
+    return buckets.map((b, v) => ({
+      index: baseIndex + v,
+      name: `${b.name}[b${b.bucket}]`,
+      value: b.value,
+      weight: b.weight,
+      contribution: b.weight
+      // indicador da faixa ativa = 1 -> contribuicao = peso
+    }));
+  }
   function explainCardChoice(genome, view) {
     const pre = precompute(view);
     const cards = view.hand.map((card) => {
-      const { score, contributions } = build(
-        CARD_FEATURE_NAMES,
-        genome.cardWeights,
-        cardFeatures(view, card, pre)
-      );
-      return { card, score, contributions, chosen: false };
+      const lin = build(CARD_FEATURE_NAMES, genome.cardWeights, cardFeatures(view, card, pre));
+      const parts = cardScoreParts(genome, view, card, pre);
+      const contributions = [
+        ...lin.contributions,
+        ...bucketToContribs(parts.buckets, CARD_FEATURE_COUNT)
+      ];
+      return { card, score: parts.score, contributions, chosen: false };
     });
     let chosenIndex = 0;
     for (let i = 1; i < cards.length; i++) {
@@ -1081,13 +1273,14 @@ var Truco = (() => {
   }
   function explainBetting(genome, view) {
     const pre = precompute(view);
-    const { score, contributions } = build(
-      BET_FEATURE_NAMES,
-      genome.betWeights,
-      betFeatures(view, pre)
-    );
+    const lin = build(BET_FEATURE_NAMES, genome.betWeights, betFeatures(view, pre));
+    const parts = situationScoreParts(genome, view, pre);
+    const contributions = [
+      ...lin.contributions,
+      ...bucketToContribs(parts.buckets, BET_FEATURE_COUNT)
+    ];
     return {
-      s: score,
+      s: parts.score,
       contributions,
       thrCall: genome.thrCall,
       thrAccept: genome.thrAccept,
@@ -1127,11 +1320,6 @@ var Truco = (() => {
   }
 
   // src/players/evolvedBot.ts
-  function dot(weights, features) {
-    let s = 0;
-    for (let i = 0; i < weights.length; i++) s += weights[i] * features[i];
-    return s;
-  }
   function sigmoid(x) {
     return 1 / (1 + Math.exp(-x));
   }
@@ -1142,10 +1330,9 @@ var Truco = (() => {
       this.rng = rng;
       this.onDecision = onDecision;
     }
-    /** Score S da situacao para decisoes de aposta. */
+    /** Score S da situacao para decisoes de aposta (linear + faixas). */
     situationScore(view) {
-      const pre = precompute(view);
-      return dot(this.genome.betWeights, betFeatures(view, pre));
+      return situationScore(this.genome, view, precompute(view));
     }
     async chooseAction(view, canRaise) {
       if (canRaise && !view.blind) {
@@ -1183,7 +1370,7 @@ var Truco = (() => {
       const hand = view.hand;
       if (view.blind || hand.length === 1) return hand[0];
       const pre = precompute(view);
-      const scores = hand.map((c) => dot(this.genome.cardWeights, cardFeatures(view, c, pre)));
+      const scores = hand.map((c) => cardScore(this.genome, view, c, pre));
       const temp = Math.max(0, this.genome.playTemp);
       if (temp <= 1e-6) {
         let best = 0;
@@ -1219,7 +1406,14 @@ var Truco = (() => {
 
   // src/players/genome.ts
   var SCALAR_COUNT = 5;
-  var GENOME_LENGTH = CARD_FEATURE_COUNT + BET_FEATURE_COUNT + SCALAR_COUNT;
+  var GENOME_LENGTH = CARD_FEATURE_COUNT + BET_FEATURE_COUNT + SCALAR_COUNT + CARD_THRESH_COUNT + CARD_BUCKET_W_COUNT + BET_THRESH_COUNT + BET_BUCKET_W_COUNT;
+  function spreadThresholds(numVars) {
+    const out = [];
+    for (let v = 0; v < numVars; v++) {
+      for (let k = 1; k < N_BUCKETS; k++) out.push(k / N_BUCKETS);
+    }
+    return out;
+  }
   function parseGenome(obj) {
     const g = obj;
     const okArr = (a, n) => Array.isArray(a) && a.length === n && a.every((x) => typeof x === "number");
@@ -1232,6 +1426,7 @@ var Truco = (() => {
     for (const k of ["thrCall", "thrAccept", "thrRaise", "pBluff", "playTemp"]) {
       if (typeof g[k] !== "number") throw new Error(`Campo ${k} ausente/invalido no genoma.`);
     }
+    const bucket = (a, n, fill) => okArr(a, n) ? a : fill;
     return {
       cardWeights: g.cardWeights,
       betWeights: g.betWeights,
@@ -1239,7 +1434,27 @@ var Truco = (() => {
       thrAccept: g.thrAccept,
       thrRaise: g.thrRaise,
       pBluff: g.pBluff,
-      playTemp: g.playTemp
+      playTemp: g.playTemp,
+      cardBucketThresholds: bucket(
+        g.cardBucketThresholds,
+        CARD_THRESH_COUNT,
+        spreadThresholds(CARD_BUCKET_VARS.length)
+      ),
+      cardBucketWeights: bucket(
+        g.cardBucketWeights,
+        CARD_BUCKET_W_COUNT,
+        new Array(CARD_BUCKET_W_COUNT).fill(0)
+      ),
+      betBucketThresholds: bucket(
+        g.betBucketThresholds,
+        BET_THRESH_COUNT,
+        spreadThresholds(BET_BUCKET_VARS.length)
+      ),
+      betBucketWeights: bucket(
+        g.betBucketWeights,
+        BET_BUCKET_W_COUNT,
+        new Array(BET_BUCKET_W_COUNT).fill(0)
+      )
     };
   }
 
@@ -1247,6 +1462,7 @@ var Truco = (() => {
   var melhorada1Genome = parseGenome(melhorada_1_default);
   var melhorada2Genome = parseGenome(melhorada_2_default);
   var melhorada3Genome = parseGenome(melhorada_3_default);
+  var melhorada4Genome = parseGenome(melhorada_4_default);
   var PERSONALITIES = [
     {
       id: "inocente",
@@ -1269,8 +1485,14 @@ var Truco = (() => {
     {
       id: "melhorada_3",
       label: "Melhorada 3",
-      description: "Round-robin (pior caso) vs o pool. A mais forte: ganha de TODAS (pior matchup ~68%).",
+      description: "Round-robin (pior caso) vs o pool. Ganha de inocente/m1/m2 (pior matchup ~68%).",
       create: (name, rng, onDecision) => new EvolvedBotPlayer(name, melhorada3Genome, rng, onDecision)
+    },
+    {
+      id: "melhorada_4",
+      label: "Melhorada 4",
+      description: "Nao-linear (features em faixas) round-robin. A mais forte: bate ate a m3 (~63%).",
+      create: (name, rng, onDecision) => new EvolvedBotPlayer(name, melhorada4Genome, rng, onDecision)
     }
   ];
   function getPersonality(id) {
