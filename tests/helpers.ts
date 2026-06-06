@@ -6,6 +6,8 @@
 import { Rng } from "../src/core/deck.js";
 import {
   Action,
+  MaoDeOnzeContext,
+  MaoDeOnzeDecision,
   Player,
   PlayerView,
   Proposal,
@@ -31,6 +33,7 @@ export class ScriptedPlayer implements Player {
   constructor(
     readonly name: string,
     private readonly defaultResponse: RaiseResponse = "accept",
+    private readonly onzeDecision: MaoDeOnzeDecision = "play",
   ) {}
 
   async chooseAction(view: PlayerView): Promise<Action> {
@@ -44,5 +47,12 @@ export class ScriptedPlayer implements Player {
   ): Promise<RaiseResponse> {
     if (this.defaultResponse === "raise" && !canCounter) return "accept";
     return this.defaultResponse;
+  }
+
+  async decideMaoDeOnze(
+    _view: PlayerView,
+    _ctx: MaoDeOnzeContext,
+  ): Promise<MaoDeOnzeDecision> {
+    return this.onzeDecision;
   }
 }

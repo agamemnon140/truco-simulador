@@ -59,8 +59,18 @@ export interface RuleSet {
    */
   cancelOnFullTie: boolean;
 
-  /** Regra "mao de 11" ativada (desligada por padrao no MVP). */
+  /**
+   * Regra "mao de onze": quando uma equipe atinge `pointsToWin - 1`.
+   * - Uma equipe nesse ponto: ninguem pode trucar; a mao vale `maoDeOnzeValue`;
+   *   a equipe decide, antes da 1a carta, jogar ou correr (adversario leva
+   *   `baseValue`).
+   * - Ambas as equipes nesse ponto: a mao e jogada "fechada" (cada jogador nao
+   *   ve as proprias cartas), vale `baseValue` e sem truco.
+   */
   maoDeOnze: boolean;
+
+  /** Valor da mao quando UMA equipe esta na "mao de onze" (Paulista: 3). */
+  maoDeOnzeValue: number;
 }
 
 /** RuleSet padrao: Truco Paulista, duplas (2v2), ate 12 pontos. */
@@ -91,7 +101,8 @@ export const TRUCO_PAULISTA: RuleSet = {
     { name: "Doze", value: 12 },
   ],
   cancelOnFullTie: true,
-  maoDeOnze: false,
+  maoDeOnze: true,
+  maoDeOnzeValue: 3,
 };
 
 /**

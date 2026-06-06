@@ -11,6 +11,8 @@ import {
 } from "../cli/render.js";
 import {
   Action,
+  MaoDeOnzeContext,
+  MaoDeOnzeDecision,
   Player,
   PlayerView,
   Proposal,
@@ -29,13 +31,21 @@ export class HumanCliPlayer implements Player {
 
   async chooseAction(view: PlayerView, canRaise: boolean): Promise<Action> {
     // Pequena barreira para hotseat: passar o teclado ao jogador da vez.
-    await ask(`\n>>> Vez de ${this.name}. Pressione Enter para ver suas cartas...`);
+    await ask(`\n>>> Vez de ${this.name}. Pressione Enter para continuar...`);
     print(renderTurnHeader(view, this.names));
-    print(`Sua mao: ${fmtHandWithIndices(view.hand)}`);
 
-    const hint = canRaise
-      ? "Escolha a carta pelo numero, ou 't' para pedir truco/aumentar: "
-      : "Escolha a carta pelo numero: ";
+    if (view.blind) {
+      // Mao de onze 11x11: jogo "as cegas" — cartas ocultas, escolhe pela posicao.
+      const hidden = view.hand.map((_, i) => `[${i}] ??`).join("   ");
+      print(`Mao FECHADA (11x11) — voce nao ve suas cartas: ${hidden}`);
+    } else {
+      print(`Sua mao: ${fmtHandWithIndices(view.hand)}`);
+    }
+
+    const hint =
+      canRaise && !view.blind
+        ? "Escolha a carta pelo numero, ou 't' para pedir truco/aumentar: "
+        : "Escolha a carta pelo numero: ";
 
     for (;;) {
       const input = (await ask(hint)).toLowerCase();
@@ -72,6 +82,29 @@ export class HumanCliPlayer implements Player {
       if (input === "a" || input === "aceitar") return "accept";
       if (input === "c" || input === "correr") return "run";
       if (canCounter && (input === "r" || input === "aumentar")) return "raise";
+      print("Entrada invalida. Tente de novo.");
+    }
+  }
+
+  async decideMaoDeOnze(
+    view: PlayerView,
+    ctx: MaoDeOnzeContext,
+  ): Promise<MaoDeOnzeDecision> {
+    await ask(`\n>>> MAO DE ONZE — ${this.name} decide pela dupla. Enter...`);
+    print(renderTurnHeader(view, this.names));
+    print(
+      `Sua equipe esta com ${view.scores[view.team]} pontos. ` +
+        `Se JOGAR, a mao vale ${ctx.value}; se CORRER, o adversario leva ${ctx.foldValue}.`,
+    );
+    print(`Suas cartas:     ${view.hand.map(fmtCard).join("  ")}`);
+    ctx.partnerHands.forEach((h, i) => {
+      print(`Parceiro ${i + 1}:      ${h.map(fmtCard).join("  ")}`);
+    });
+
+    for (;;) {
+      const input = (await ask("[j] jogar   [c] correr: ")).toLowerCase();
+      if (input === "j" || input === "jogar") return "play";
+      if (input === "c" || input === "correr") return "fold";
       print("Entrada invalida. Tente de novo.");
     }
   }

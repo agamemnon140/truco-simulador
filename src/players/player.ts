@@ -40,6 +40,25 @@ export interface PlayerView {
   currentVazaPlays: readonly Play[];
   /** Valor atual da mao (1, 3, 6, 9 ou 12). */
   handValue: number;
+  /**
+   * Mao "fechada" (mao de onze 11x11): o jogador NAO conhece as proprias
+   * cartas. Quando true, `hand` ainda traz as cartas (a UI deve esconde-las) e
+   * o jogador escolhe "as cegas". Truco fica indisponivel.
+   */
+  blind: boolean;
+}
+
+/** Decisao da equipe na "mao de onze" (uma equipe com pointsToWin-1). */
+export type MaoDeOnzeDecision = "play" | "fold";
+
+/** Contexto passado a quem decide a mao de onze. */
+export interface MaoDeOnzeContext {
+  /** Cartas dos PARCEIROS de equipe (consulta em dupla); a propria mao vem na view. */
+  partnerHands: readonly (readonly Card[])[];
+  /** Valor da mao se decidir jogar. */
+  value: number;
+  /** Valor que o adversario leva se esta equipe correr. */
+  foldValue: number;
 }
 
 /** Acao de um jogador na sua vez: jogar uma carta ou pedir/aumentar o truco. */
@@ -81,4 +100,14 @@ export interface Player {
     proposal: Proposal,
     canCounter: boolean,
   ): Promise<RaiseResponse>;
+
+  /**
+   * "Mao de onze": chamado UMA vez, antes da 1a carta, apenas para um
+   * representante da equipe que esta com pointsToWin-1, para decidir entre
+   * jogar (valendo `ctx.value`) ou correr (adversario leva `ctx.foldValue`).
+   */
+  decideMaoDeOnze(
+    view: PlayerView,
+    ctx: MaoDeOnzeContext,
+  ): Promise<MaoDeOnzeDecision>;
 }

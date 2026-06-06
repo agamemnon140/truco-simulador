@@ -26,6 +26,9 @@ class RaiseOncePlayer implements Player {
   async respondToRaise(): Promise<RaiseResponse> {
     return "accept";
   }
+  async decideMaoDeOnze(): Promise<"play" | "fold"> {
+    return "play";
+  }
 }
 
 describe("playHand", () => {

@@ -23,6 +23,8 @@ import { RuleSet } from "./rules.js";
 import { Card, Seat, TeamId, cardsEqual } from "./types.js";
 import { Play, VazaResult, resolveVaza } from "./vaza.js";
 import {
+  MaoDeOnzeContext,
+  MaoDeOnzeDecision,
   Player,
   PlayerView,
   Proposal,
@@ -31,7 +33,13 @@ import {
 
 /** Observador opcional para a UI acompanhar o que acontece na mao. */
 export interface HandObserver {
-  onDeal?(info: { vira: Card; manilha: string; leader: Seat }): void;
+  onDeal?(info: {
+    vira: Card;
+    manilha: string;
+    leader: Seat;
+    /** Maos distribuidas por assento (copia; so para hosts/observadores). */
+    hands: readonly (readonly Card[])[];
+  }): void;
   onPlay?(info: { seat: Seat; card: Card; vazaIndex: number }): void;
   onRaiseProposed?(proposal: Proposal): void;
   onRaiseResponse?(info: {
@@ -43,6 +51,19 @@ export interface HandObserver {
     result: VazaResult;
     plays: readonly Play[];
   }): void;
+  /** Disparado quando a mao e uma "mao de onze" (single ou both). */
+  onMaoDeOnze?(info: {
+    mode: "single" | "both";
+    /** Equipe em pointsToWin-1 (apenas no modo single). */
+    teamAt11?: TeamId;
+    /** Valor da mao. */
+    value: number;
+  }): void;
+  /** Decisao da equipe na mao de onze single (jogar ou correr). */
+  onMaoDeOnzeDecision?(info: {
+    team: TeamId;
+    decision: MaoDeOnzeDecision;
+  }): void;
   onHandEnd?(result: HandResult): void;
 }
 
@@ -53,7 +74,7 @@ export interface HandResult {
   /** Pontos a creditar a equipe vencedora (0 se anulada). */
   points: number;
   /** Por que a mao terminou. */
-  reason: "vazas" | "run" | "cancelled";
+  reason: "vazas" | "run" | "cancelled" | "fold";
 }
 
 export interface HandConfig {
@@ -139,7 +160,30 @@ export async function playHand(cfg: HandConfig): Promise<HandResult> {
   const allVazaPlays: Play[][] = [];
   let leader: Seat = firstSeat;
 
-  observer?.onDeal?.({ vira, manilha, leader });
+  // --- Mao de onze: detectar o modo a partir do placar ---
+  const threshold = rules.pointsToWin - 1;
+  const teamsAtThreshold: TeamId[] = [];
+  for (let t = 0; t < rules.numTeams; t++) {
+    if (scores[t] === threshold) teamsAtThreshold.push(t);
+  }
+  const onzeActive = rules.maoDeOnze && teamsAtThreshold.length > 0;
+  const onzeBoth = onzeActive && teamsAtThreshold.length >= 2;
+  const onzeSingle = onzeActive && teamsAtThreshold.length === 1;
+  const noTruco = onzeActive; // sem truco em qualquer mao de onze
+  const blind = onzeBoth; // 11x11 e jogada "fechada"
+  // Valor base efetivo desta mao (3 na mao de onze single; senao baseValue).
+  const effectiveBase = onzeSingle ? rules.maoDeOnzeValue : rules.baseValue;
+
+  /** Valor da mao agora: base efetiva se sem aumento, senao o nivel aceito. */
+  const valueNow = (): number =>
+    betting.level < 0 ? effectiveBase : currentValue(betting, rules);
+
+  observer?.onDeal?.({
+    vira,
+    manilha,
+    leader,
+    hands: hands.map((h) => h.slice()),
+  });
 
   const buildView = (seat: Seat, currentVazaPlays: Play[]): PlayerView => ({
     seat,
@@ -153,8 +197,57 @@ export async function playHand(cfg: HandConfig): Promise<HandResult> {
     completedVazaPlays: allVazaPlays,
     completedVazaResults: vazaResults,
     currentVazaPlays,
-    handValue: currentValue(betting, rules),
+    handValue: valueNow(),
+    blind,
   });
+
+  // --- Mao de onze single: a equipe de 11 decide jogar ou correr ---
+  if (onzeSingle) {
+    const teamAt11 = teamsAtThreshold[0]!;
+    observer?.onMaoDeOnze?.({ mode: "single", teamAt11, value: effectiveBase });
+
+    // Representante: primeiro assento da equipe de 11 na ordem de jogo.
+    let deciderSeat = firstSeat;
+    for (let k = 0; k < n; k++) {
+      const s = (firstSeat + k) % n;
+      if (teamOfSeat[s] === teamAt11) {
+        deciderSeat = s;
+        break;
+      }
+    }
+    // Consulta em dupla: ve as cartas dos parceiros (alem da propria, na view).
+    const partnerHands: Card[][] = [];
+    for (let s = 0; s < n; s++) {
+      if (s !== deciderSeat && teamOfSeat[s] === teamAt11) {
+        partnerHands.push(hands[s]!.slice());
+      }
+    }
+    const oppSeat = firstOpponentAfter(deciderSeat, teamAt11, teamOfSeat);
+    const opponentTeam = teamOfSeat[oppSeat]!;
+
+    const ctx: MaoDeOnzeContext = {
+      partnerHands,
+      value: effectiveBase,
+      foldValue: rules.baseValue,
+    };
+    const decision = await players[deciderSeat]!.decideMaoDeOnze(
+      buildView(deciderSeat, []),
+      ctx,
+    );
+    observer?.onMaoDeOnzeDecision?.({ team: teamAt11, decision });
+
+    if (decision === "fold") {
+      const result: HandResult = {
+        winningTeam: opponentTeam,
+        points: rules.baseValue,
+        reason: "fold",
+      };
+      observer?.onHandEnd?.(result);
+      return result;
+    }
+  } else if (onzeBoth) {
+    observer?.onMaoDeOnze?.({ mode: "both", value: effectiveBase });
+  }
 
   /**
    * Conduz a negociacao iniciada por `starter` que pediu aumento.
@@ -221,7 +314,7 @@ export async function playHand(cfg: HandConfig): Promise<HandResult> {
       // O jogador pode propor aumento antes de jogar (talvez varias vezes ate
       // decidir jogar), desde que sua equipe possa propor.
       for (;;) {
-        const allowRaise = canPropose(betting, team, rules);
+        const allowRaise = !noTruco && canPropose(betting, team, rules);
         const action = await players[seat]!.chooseAction(
           buildView(seat, plays),
           allowRaise,
@@ -279,7 +372,7 @@ export async function playHand(cfg: HandConfig): Promise<HandResult> {
     if (decision !== "continue") {
       const handResult: HandResult = {
         winningTeam: decision,
-        points: currentValue(betting, rules),
+        points: valueNow(),
         reason: "vazas",
       };
       observer?.onHandEnd?.(handResult);

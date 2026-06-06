@@ -16,6 +16,12 @@ configurável para trocar de variante e de formato.
 - Decide o vencedor da **mão** com as regras de empate do truco.
 - **Truco e escalada**: pedir / aceitar / correr / aumentar (1 → 3 → 6 → 9 → 12).
 - **Acumula a pontuação** por equipe e encerra a partida em 12 pontos.
+- **Mão de onze** (regras adaptadas):
+  - Uma equipe com 11: ninguém pode trucar; a mão vale **3**; a dupla de 11 vê
+    as cartas dos dois parceiros e decide **jogar** (vale 3) ou **correr**
+    (adversário leva 1) antes da 1ª carta.
+  - Ambas com 11: mão jogada **fechada/às cegas** (os jogadores não veem as
+    próprias cartas), vale 1, sem truco.
 - Jogadores **humanos e/ou bots**, escolhidos antes da partida.
 - Formatos: duplas (2v2), mano a mano (1v1) e trios (3v3).
 
@@ -24,9 +30,11 @@ configurável para trocar de variante e de formato.
 ```bash
 npm install
 
-npm start     # jogo interativo no terminal (escolha humanos/bots no início)
-npm run demo  # demonstração automática: bots vs bots, sem digitar nada
-npm test      # bateria de testes (regras, vazas, apostas, mão e partida)
+npm start          # jogo interativo no terminal (escolha humanos/bots no início)
+npm run demo       # demonstração automática: bots vs bots, sem digitar nada
+npm run demo:verbose  # demo detalhada: cartas de cada um, jogadas e apostas
+npm run demo:onze     # demonstra a mão de onze (11x9 e 11x11)
+npm test           # bateria de testes (regras, vazas, apostas, mão de onze...)
 ```
 
 > Observação: `npm start` precisa de um **terminal real**. Rodar com a entrada
@@ -63,4 +71,3 @@ src/
 - Interface gráfica/web reaproveitando o `core` (já está isolado para isso).
 - Bot mais sofisticado e simulação em massa para estatísticas.
 - Outras variantes (Gaúcho/Argentina: envido, flor) via novos `RuleSet`.
-- Regra "mão de 11" (já existe o campo `maoDeOnze` no `RuleSet`).

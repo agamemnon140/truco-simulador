@@ -41,6 +41,8 @@ export interface MatchConfig {
   observer?: MatchObserver;
   /** Assento que lidera a primeira mao (default 0). */
   startSeat?: Seat;
+  /** Placar inicial por equipe (default todos 0). Util para testes/demos. */
+  initialScores?: readonly number[];
 }
 
 export interface MatchResult {
@@ -60,6 +62,11 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchResult> {
 
   const teamOfSeat = assignTeams(rules);
   const scores = new Array<number>(rules.numTeams).fill(0);
+  if (cfg.initialScores) {
+    for (let t = 0; t < rules.numTeams; t++) {
+      scores[t] = cfg.initialScores[t] ?? 0;
+    }
+  }
   let firstSeat: Seat = cfg.startSeat ?? 0;
   let handsPlayed = 0;
 

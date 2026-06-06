@@ -7,6 +7,8 @@
     "build": "tsc",
     "start": "tsx src/cli/main.ts",
     "demo": "tsx src/cli/demo.ts",
+    "demo:verbose": "tsx src/cli/verbose-demo.ts",
+    "demo:onze": "tsx src/cli/maoonze-demo.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

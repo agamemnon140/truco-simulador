@@ -13,6 +13,8 @@ import { cardStrength, compareCards } from "../core/ranking.js";
 import { Card } from "../core/types.js";
 import {
   Action,
+  MaoDeOnzeContext,
+  MaoDeOnzeDecision,
   Player,
   PlayerView,
   Proposal,
@@ -44,8 +46,20 @@ function currentBest(view: PlayerView): Card | null {
   return best;
 }
 
+/** Forca normalizada [0,1] de um conjunto de cartas, dada a vira. */
+function cardsScore(cards: readonly Card[], view: PlayerView): number {
+  if (cards.length === 0) return 0;
+  const max = maxStrength(view);
+  let sum = 0;
+  for (const c of cards) sum += cardStrength(c, view.vira, view.rules);
+  return sum / (max * cards.length);
+}
+
 /** Escolhe a carta a jogar conforme a heuristica. */
 function pickCard(view: PlayerView): Card {
+  // Mao "fechada" (11x11): nao se conhece as cartas; joga uma sem estrategia.
+  if (view.blind) return view.hand[0]!;
+
   const hand = [...view.hand].sort(
     (a, b) =>
       cardStrength(a, view.vira, view.rules) -
@@ -86,5 +100,16 @@ export class BotPlayer implements Player {
     if (score > 0.78 && canCounter) return "raise";
     if (score > 0.35) return "accept";
     return "run";
+  }
+
+  async decideMaoDeOnze(
+    view: PlayerView,
+    ctx: MaoDeOnzeContext,
+  ): Promise<MaoDeOnzeDecision> {
+    // Avalia a forca combinada da dupla (propria mao + cartas do parceiro).
+    const all = [...view.hand, ...ctx.partnerHands.flat()];
+    const score = cardsScore(all, view);
+    // Joga valendo 3 se a dupla parece pelo menos mediana; senao corre (da 1).
+    return score > 0.45 ? "play" : "fold";
   }
 }
