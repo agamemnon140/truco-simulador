@@ -1,0 +1,301 @@
+/**
+ * Orquestracao de uma MAO (3 vazas) de truco.
+ *
+ * Distribui as cartas, conduz cada vaza pedindo decisoes aos jogadores, trata a
+ * negociacao do truco (pedir/aceitar/correr/aumentar) e resolve quem venceu a
+ * mao (incluindo as regras de empate). Nao faz I/O: recebe os Players (que
+ * podem ser humanos ou bots) e um observador opcional para a UI renderizar.
+ */
+
+import {
+  BettingState,
+  acceptRaise,
+  canPropose,
+  currentValue,
+  forfeitValueOnRun,
+  initBetting,
+  isMaxed,
+  nextLevel,
+} from "./betting.js";
+import { Rng, deal } from "./deck.js";
+import { manilhaRank } from "./ranking.js";
+import { RuleSet } from "./rules.js";
+import { Card, Seat, TeamId, cardsEqual } from "./types.js";
+import { Play, VazaResult, resolveVaza } from "./vaza.js";
+import {
+  Player,
+  PlayerView,
+  Proposal,
+  RaiseResponse,
+} from "../players/player.js";
+
+/** Observador opcional para a UI acompanhar o que acontece na mao. */
+export interface HandObserver {
+  onDeal?(info: { vira: Card; manilha: string; leader: Seat }): void;
+  onPlay?(info: { seat: Seat; card: Card; vazaIndex: number }): void;
+  onRaiseProposed?(proposal: Proposal): void;
+  onRaiseResponse?(info: {
+    responder: Seat;
+    response: RaiseResponse;
+  }): void;
+  onVazaResolved?(info: {
+    vazaIndex: number;
+    result: VazaResult;
+    plays: readonly Play[];
+  }): void;
+  onHandEnd?(result: HandResult): void;
+}
+
+/** Resultado de uma mao. */
+export interface HandResult {
+  /** Equipe vencedora, ou null se a mao foi anulada (empate total). */
+  winningTeam: TeamId | null;
+  /** Pontos a creditar a equipe vencedora (0 se anulada). */
+  points: number;
+  /** Por que a mao terminou. */
+  reason: "vazas" | "run" | "cancelled";
+}
+
+export interface HandConfig {
+  rules: RuleSet;
+  /** Jogadores indexados por assento. */
+  players: readonly Player[];
+  /** Mapa assento -> equipe. */
+  teamOfSeat: readonly TeamId[];
+  /** Pontuacao atual por equipe (apenas para exibir na view). */
+  scores: readonly number[];
+  /** Assento que lidera a primeira vaza ("mao"). */
+  firstSeat: Seat;
+  /** Fonte de aleatoriedade para distribuir. */
+  rng?: Rng;
+  /** Observador opcional. */
+  observer?: HandObserver;
+}
+
+/**
+ * Decide o vencedor da mao a partir dos resultados das vazas conhecidos.
+ * Retorna a equipe vencedora, "continue" (jogar mais vaza) ou "cancel".
+ */
+export function decideHand(
+  results: readonly VazaResult[],
+  rules: RuleSet,
+): TeamId | "continue" | "cancel" {
+  const r1 = results[0];
+  const r2 = results[1];
+  const r3 = results[2];
+
+  // Precisa de pelo menos 2 vazas para decidir.
+  if (!r2) return "continue";
+
+  const t1 = r1!.winningTeam;
+  const t2 = r2.winningTeam;
+
+  if (t1 !== null && t2 !== null) {
+    if (t1 === t2) return t1; // venceu as duas primeiras
+    // Split 1-1: a terceira decide.
+    if (!r3) return "continue";
+    if (r3.winningTeam !== null) return r3.winningTeam;
+    // Terceira empatou: vence quem fez a primeira vaza.
+    return t1;
+  }
+
+  if (t1 === null && t2 !== null) return t2; // empatou 1a, venceu 2a
+  if (t1 !== null && t2 === null) return t1; // venceu 1a, empatou 2a
+
+  // Ambas empataram (t1 === null && t2 === null): a terceira decide.
+  if (!r3) return "continue";
+  if (r3.winningTeam !== null) return r3.winningTeam;
+  // Empate nas tres: mao anulada (ou regra da casa).
+  return rules.cancelOnFullTie ? "cancel" : "cancel";
+}
+
+/** Primeiro assento (em ordem de jogo) apos `seat` cuja equipe difere. */
+function firstOpponentAfter(
+  seat: Seat,
+  team: TeamId,
+  teamOfSeat: readonly TeamId[],
+): Seat {
+  const n = teamOfSeat.length;
+  for (let k = 1; k < n; k++) {
+    const s = (seat + k) % n;
+    if (teamOfSeat[s] !== team) return s;
+  }
+  throw new Error("Nenhum adversario encontrado (mesa de uma equipe so?).");
+}
+
+/** Conduz uma mao completa e retorna seu resultado. */
+export async function playHand(cfg: HandConfig): Promise<HandResult> {
+  const { rules, players, teamOfSeat, scores, firstSeat, observer } = cfg;
+  const n = rules.numPlayers;
+
+  const dealt = deal(n, rules.cardsPerPlayer, cfg.rng);
+  const vira = dealt.vira;
+  const manilha = manilhaRank(vira, rules);
+  // Copia mutavel das maos por assento (cartas vao sendo removidas).
+  const hands: Card[][] = dealt.hands.map((h) => h.slice());
+
+  let betting: BettingState = initBetting();
+  const vazaResults: VazaResult[] = [];
+  const allVazaPlays: Play[][] = [];
+  let leader: Seat = firstSeat;
+
+  observer?.onDeal?.({ vira, manilha, leader });
+
+  const buildView = (seat: Seat, currentVazaPlays: Play[]): PlayerView => ({
+    seat,
+    team: teamOfSeat[seat]!,
+    hand: hands[seat]!,
+    vira,
+    manilha,
+    rules,
+    scores,
+    teamOfSeat,
+    completedVazaPlays: allVazaPlays,
+    completedVazaResults: vazaResults,
+    currentVazaPlays,
+    handValue: currentValue(betting, rules),
+  });
+
+  /**
+   * Conduz a negociacao iniciada por `starter` que pediu aumento.
+   * Retorna o vencedor por desistencia (e seus pontos) ou null se aceito/seguir.
+   */
+  const negotiate = async (
+    starter: Seat,
+    currentVazaPlays: Play[],
+  ): Promise<{ winner: TeamId; points: number } | null> => {
+    let proposer: Seat = starter;
+    // Laco de propostas/contrapropostas.
+    for (;;) {
+      const lvl = nextLevel(betting, rules);
+      if (!lvl) return null; // ja no maximo: nada a propor
+      const proposingTeam = teamOfSeat[proposer]!;
+      const proposal: Proposal = {
+        proposer,
+        proposingTeam,
+        level: lvl.index,
+        name: lvl.name,
+        value: lvl.value,
+        forfeitValue: forfeitValueOnRun(betting, rules),
+      };
+      observer?.onRaiseProposed?.(proposal);
+
+      const responderSeat = firstOpponentAfter(
+        proposer,
+        proposingTeam,
+        teamOfSeat,
+      );
+      const canCounter = lvl.index < rules.bettingLevels.length - 1;
+      const response: RaiseResponse = await players[responderSeat]!
+        .respondToRaise(
+          buildView(responderSeat, currentVazaPlays),
+          proposal,
+          canCounter,
+        );
+      observer?.onRaiseResponse?.({ responder: responderSeat, response });
+
+      if (response === "run") {
+        // Quem propos leva o valor estabelecido antes do aumento.
+        return { winner: proposingTeam, points: proposal.forfeitValue };
+      }
+
+      // Tanto aceitar quanto aumentar fixam o nivel proposto como aceito.
+      betting = acceptRaise(betting, proposingTeam, rules);
+
+      if (response === "accept" || isMaxed(betting, rules) || !canCounter) {
+        return null;
+      }
+
+      // Contraproposta: o respondedor passa a ser o proponente.
+      proposer = responderSeat;
+    }
+  };
+
+  // Laco das vazas.
+  for (let v = 0; v < rules.cardsPerPlayer; v++) {
+    const plays: Play[] = [];
+    for (let k = 0; k < n; k++) {
+      const seat: Seat = (leader + k) % n;
+      const team = teamOfSeat[seat]!;
+
+      // O jogador pode propor aumento antes de jogar (talvez varias vezes ate
+      // decidir jogar), desde que sua equipe possa propor.
+      for (;;) {
+        const allowRaise = canPropose(betting, team, rules);
+        const action = await players[seat]!.chooseAction(
+          buildView(seat, plays),
+          allowRaise,
+        );
+
+        if (action.type === "raise") {
+          if (!allowRaise) {
+            // Ignora pedido invalido: trata como se nada tivesse sido pedido.
+            continue;
+          }
+          const outcome = await negotiate(seat, plays);
+          if (outcome) {
+            const result: HandResult = {
+              winningTeam: outcome.winner,
+              points: outcome.points,
+              reason: "run",
+            };
+            observer?.onHandEnd?.(result);
+            return result;
+          }
+          // Aumento aceito: o mesmo jogador agora deve jogar uma carta.
+          continue;
+        }
+
+        // Jogar uma carta: validar que esta na mao.
+        const hand = hands[seat]!;
+        const idx = hand.findIndex((c) => cardsEqual(c, action.card));
+        if (idx < 0) {
+          throw new Error(
+            `Jogador ${seat} tentou jogar carta que nao possui.`,
+          );
+        }
+        hand.splice(idx, 1);
+        plays.push({ seat, card: action.card });
+        observer?.onPlay?.({ seat, card: action.card, vazaIndex: v });
+        break;
+      }
+    }
+
+    const result = resolveVaza(plays, vira, teamOfSeat, rules);
+    vazaResults.push(result);
+    allVazaPlays.push(plays);
+    observer?.onVazaResolved?.({ vazaIndex: v, result, plays });
+
+    const decision = decideHand(vazaResults, rules);
+    if (decision === "cancel") {
+      const handResult: HandResult = {
+        winningTeam: null,
+        points: 0,
+        reason: "cancelled",
+      };
+      observer?.onHandEnd?.(handResult);
+      return handResult;
+    }
+    if (decision !== "continue") {
+      const handResult: HandResult = {
+        winningTeam: decision,
+        points: currentValue(betting, rules),
+        reason: "vazas",
+      };
+      observer?.onHandEnd?.(handResult);
+      return handResult;
+    }
+
+    // Proxima vaza: lidera quem venceu; em empate, mantem o lider.
+    if (result.winningSeat !== null) leader = result.winningSeat;
+  }
+
+  // Esgotaram as vazas sem decisao explicita: anula (caso raro de empates).
+  const fallback: HandResult = {
+    winningTeam: null,
+    points: 0,
+    reason: "cancelled",
+  };
+  observer?.onHandEnd?.(fallback);
+  return fallback;
+}

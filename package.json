@@ -1,0 +1,21 @@
+{
+  "name": "truco-simulador",
+  "version": "0.1.0",
+  "description": "Simulador do jogo de truco (Paulista), com motor de regras configuravel",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/cli/main.ts",
+    "demo": "tsx src/cli/demo.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": ["truco", "card-game", "simulador"],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
