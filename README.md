@@ -190,8 +190,32 @@ exponenciais `1,1,2,4,16` — a última domina) **menos** uma penalidade forte d
 **piso de 50%** em cada confronto. Resultado: **ganha de todas as gerações**
 (sementes novas: inocente 58%, m1 60%, m2 88%, m3 59%, **m4 52%**) sem regredir.
 A margem sobre a m4 é **estreita (~52%)** — sinal de que a fronteira da
-arquitetura linear/faixas está **saturando**; o próximo salto seria **inferência**
-(modelar/adaptar ao oponente).
+arquitetura linear/faixas está **saturando**.
+
+## Equilíbrio (GTO) — resolver matematicamente (CFR)
+
+Toda a linha m1…m5 é **best-response** (melhor resposta a um pool) — daí a
+não-transitividade e a saturação. A alternativa é **calcular o equilíbrio**
+(minimax/GTO), que é **inexplorável** e tem um alvo único: a **exploitability →
+0**. O módulo `src/equilibrium/` resolve subjogos por **CFR** (counterfactual
+regret minimization):
+
+```bash
+npm run solve   # valida o CFR vs a forma fechada do paper de von Neumann
+                # e resolve o subjogo "última vaza 1v1" do truco (GTO)
+```
+
+- **Validação**: recupera o valor do modelo de von Neumann (`1/9`) e seus
+  limiares (`a≈0.11`, `b≈0.78`), com exploitability ~`0.0001`.
+- **Subjogo do truco**: a estratégia GTO é **polarizada** (como no pôquer): troca
+  **com a pior carta (blefe) e com as melhores (valor)**, e dá *check* no meio; o
+  adversário só paga/aumenta com cartas fortes (value-raise só com manilhas).
+  Contraste interessante: nossos bots evoluídos blefam pouco e de forma
+  **uniforme**, não polarizada — eles *exploram*, o GTO é *inexplorável*.
+
+> Ressalva: só o **1v1** é jogo de dois-jogadores soma-zero (tem equilíbrio
+> garantido). 2v2 é jogo de **time** — fora do escopo do CFR aqui. O salto
+> seguinte seria CFR na **mão 1v1 completa** (3 vazas + escalada).
 
 No HTML e no CLI dá para escolher a inteligência de cada equipe (inocente ×
 melhorada_1…5) e assistir à diferença. Há também um **modo
