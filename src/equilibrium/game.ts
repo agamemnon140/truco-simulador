@@ -33,4 +33,10 @@ export interface Game<S> {
   actions(s: S): string[];
   /** Estado resultante de aplicar uma acao. */
   next(s: S, action: string): S;
+
+  /**
+   * Opcional: amostra UM resultado de acaso (deal) direto, para jogos grandes
+   * demais para enumerar `chanceOutcomes()`. Habilita o MCCFR (chance sampling).
+   */
+  sampleChance?(rng: () => number): S;
 }

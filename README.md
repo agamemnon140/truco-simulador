@@ -228,8 +228,25 @@ por **valor** com manilha, **blefa** com o par fraco, dá **check** com a regiã
 forte-mas-sem-manilha (3/2/A/K). A 2ª carta importa (`Q+4` → blefe; `Q+6` → quase
 nunca).
 
+### Duas últimas vazas 2v2 (A ganhou a 1ª) — MCCFR
+
+Estende para **2 vazas**: cada jogador tem 2 cartas, então além do truco há a
+decisão de **qual carta jogar** (com info sequencial). O deal de 8 cartas é
+grande demais para enumerar → **MCCFR** (amostra o deal). `npm run solve` resolve
+isso (parâmetro `ITERS2`).
+
+Resultado (vira 4♣, ~2M iterações): valor **~0.68 ao Time A** (fortemente
+favorecido — para perder, B precisa vencer **as duas** vazas restantes). O Time A
+**truca muito** (89% com manilha, 52% sem). A **decisão nova**: lidera a carta
+**mais fraca ~59%** das vezes e, tendo uma manilha, só a lidera ~55% — ou seja,
+às vezes **segura a manilha para a vaza 3**.
+
+> Ressalva: aqui a **exploitability exata** é cara (8 cartas) — a convergência é
+> monitorada pelo valor (clássico CFR converge devagar; o número ~0.68 ainda
+> drifta). É análise de tendência, não um valor cravado.
+
 > Próximo salto possível: CFR na **mão 1v1 completa** (3 vazas + escalada) com
-> abstração de cartas por força (MCCFR) → bot **inexplorável** de verdade.
+> abstração de cartas por força → bot **inexplorável** de verdade.
 
 No HTML e no CLI dá para escolher a inteligência de cada equipe (inocente ×
 melhorada_1…5) e assistir à diferença. Há também um **modo

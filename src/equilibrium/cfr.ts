@@ -100,6 +100,37 @@ export class CFRSolver<S> {
     return v;
   }
 
+  /**
+   * MCCFR (chance sampling): para jogos grandes demais para enumerar o acaso.
+   * A cada iteracao amostra UM deal e roda CFR sobre as decisoes (pc=1). Em
+   * esperanca, equivale ao CFR enumerado e converge ao equilibrio.
+   */
+  trainSampled(iterations: number, rng: () => number): void {
+    const sample = this.game.sampleChance;
+    if (!sample) throw new Error("Jogo sem sampleChance (necessario p/ MCCFR).");
+    for (let it = 0; it < iterations; it++) {
+      this.cfr(sample.call(this.game, rng), 1, 1, 1);
+    }
+  }
+
+  /** Valor (ao jogador 0) da estrategia media, estimado por amostragem. */
+  averageStrategyValueSampled(nSamples: number, rng: () => number): number {
+    const g = this.game;
+    const sample = g.sampleChance;
+    if (!sample) throw new Error("Jogo sem sampleChance.");
+    const ev = (s: S): number => {
+      if (g.isTerminal(s)) return g.payoff0(s);
+      const A = g.actions(s);
+      const sg = this.averageStrategy(g.infoSet(s), A.length);
+      let acc = 0;
+      for (let i = 0; i < A.length; i++) acc += sg[i]! * ev(g.next(s, A[i]!));
+      return acc;
+    };
+    let v = 0;
+    for (let n = 0; n < nSamples; n++) v += ev(sample.call(g, rng));
+    return v / nSamples;
+  }
+
   /** Uma iteracao = uma passada por todos os deals. Retorna o valor do jogo. */
   train(iterations: number): number {
     const deals = this.game.chanceOutcomes();

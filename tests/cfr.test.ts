@@ -3,7 +3,9 @@ import { Game } from "../src/equilibrium/game.js";
 import { CFRSolver } from "../src/equilibrium/cfr.js";
 import { VonNeumannGame } from "../src/equilibrium/games/vonNeumann.js";
 import { TrucoLastTrick2v2 } from "../src/equilibrium/games/trucoLastTrick2v2.js";
+import { TrucoTwoTricks2v2 } from "../src/equilibrium/games/trucoTwoTricks2v2.js";
 import { Rank, Suit } from "../src/core/types.js";
+import { seededRng } from "../src/training/rng.js";
 
 /** Matching pennies em forma extensiva (info imperfeita): equilibrio 50/50, v=0. */
 class MatchingPennies implements Game<{ h: string }> {
@@ -81,5 +83,17 @@ describe("CFR — ultima vaza 2v2 (jogo de time / coordenadores)", () => {
     expect(pTruco(0, 2)).toBeGreaterThan(0.7);
     // par forte sem manilha (2=8 + 3=9): CHECK -> truca pouco.
     expect(pTruco(8, 9)).toBeLessThan(0.3);
+  });
+});
+
+describe("MCCFR — duas ultimas vazas 2v2 (A ganhou a 1a)", () => {
+  it("roda (legal) e o Time A fica favorecido (valor > 0)", () => {
+    const g = new TrucoTwoTricks2v2({ rank: Rank.Quatro, suit: Suit.Paus });
+    const solver = new CFRSolver(g);
+    solver.trainSampled(30000, seededRng(1)); // amostrado -> rapido
+    const v = solver.averageStrategyValueSampled(3000, seededRng(2));
+    // A venceu a 1a vaza -> fortemente favorecido; valor em pontos > 0 e < 1.5.
+    expect(v).toBeGreaterThan(0.4);
+    expect(v).toBeLessThan(1.5);
   });
 });
