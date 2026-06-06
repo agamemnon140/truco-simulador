@@ -11,7 +11,19 @@
 export { simulate } from "./browser-entry.js";
 export type { SimulateOptions } from "./browser-entry.js";
 
-export { playInteractive, HUMAN_SEAT } from "./play-entry.js";
-export type { PlayOptions, PlayEvent, PlayUiHooks } from "./play-entry.js";
+export { playInteractive } from "./play-entry.js";
+export type { PlayOptions, PlayEvent, PlayUiHooks, SeatConfig } from "./play-entry.js";
 
 export { fmtCard, teamName } from "../cli/render.js";
+
+// Lista de personalidades (id/label/description) para a UI montar dropdowns e a tela de Info.
+export { PERSONALITIES } from "../players/personalities.js";
+
+// Calculadora de chance de vitoria da mao (web/calc.html). Expoe a API de calculo e
+// os enums/utilitarios que a UI precisa para montar cartas e ler a manilha.
+export { calcScenario, CALC_POLICIES } from "../analysis/calcApi.js";
+export type { CalcScenario, CalcOptions, CalcResult } from "../analysis/calcApi.js";
+export { Rank, Suit, cardToString } from "../core/types.js";
+export type { Card } from "../core/types.js";
+export { manilhaRank } from "../core/ranking.js";
+export { TRUCO_PAULISTA } from "../core/rules.js";

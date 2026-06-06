@@ -21,7 +21,7 @@ var Truco = (() => {
   // src/web/index.ts
   var index_exports = {};
   __export(index_exports, {
-    HUMAN_SEAT: () => HUMAN_SEAT,
+    PERSONALITIES: () => PERSONALITIES,
     fmtCard: () => fmtCard,
     playInteractive: () => playInteractive,
     simulate: () => simulate,
@@ -178,6 +178,35 @@ var Truco = (() => {
     return { winningTeam: null, winningSeat: null, tied: true };
   }
 
+  // src/players/consult.ts
+  function signalLevel(hand, vira, rules) {
+    if (hand.some((c) => isManilha(c, vira, rules))) return 2;
+    if (hand.some((c) => c.rank === "3" /* Tres */)) return 1;
+    return 0;
+  }
+  function trucoAdviceLevel(hand, vira, rules) {
+    const man = hand.filter((c) => isManilha(c, vira, rules)).length;
+    const big = hand.filter((c) => c.rank === "3" /* Tres */ || c.rank === "2" /* Dois */).length;
+    if (man >= 1 || big >= 2) return 2;
+    if (big >= 1) return 1;
+    return 0;
+  }
+  function canWinLevel(hand, vira, rules, oppBestStrength) {
+    if (hand.length === 0) return 0;
+    const myBest = Math.max(...hand.map((c) => cardStrength(c, vira, rules)));
+    const hasMan = hand.some((c) => isManilha(c, vira, rules));
+    if (myBest > oppBestStrength && hasMan) return 2;
+    if (myBest > oppBestStrength) return 1;
+    return 0;
+  }
+  function partnerSignalsOf(hand, vira, rules, oppBestStrength) {
+    return {
+      signal: signalLevel(hand, vira, rules),
+      canWin: canWinLevel(hand, vira, rules, oppBestStrength),
+      trucoAdvice: trucoAdviceLevel(hand, vira, rules)
+    };
+  }
+
   // src/core/hand.ts
   function decideHand(results, rules) {
     const r1 = results[0];
@@ -235,21 +264,43 @@ var Truco = (() => {
       leader,
       hands: hands.map((h) => h.slice())
     });
-    const buildView = (seat, currentVazaPlays) => ({
-      seat,
-      team: teamOfSeat[seat],
-      hand: hands[seat],
-      vira,
-      manilha,
-      rules,
-      scores,
-      teamOfSeat,
-      completedVazaPlays: allVazaPlays,
-      completedVazaResults: vazaResults,
-      currentVazaPlays,
-      handValue: valueNow(),
-      blind
-    });
+    const partnerSeat = (seat) => {
+      for (let k = 1; k < n; k++) {
+        const s = (seat + k) % n;
+        if (teamOfSeat[s] === teamOfSeat[seat]) return s;
+      }
+      return -1;
+    };
+    const buildView = (seat, currentVazaPlays) => {
+      let partnerSignals;
+      const pSeat = partnerSeat(seat);
+      if (!blind && pSeat >= 0) {
+        let oppBest = -1;
+        for (const p of currentVazaPlays) {
+          if (teamOfSeat[p.seat] !== teamOfSeat[seat]) {
+            const s = cardStrength(p.card, vira, rules);
+            if (s > oppBest) oppBest = s;
+          }
+        }
+        partnerSignals = partnerSignalsOf(hands[pSeat], vira, rules, oppBest);
+      }
+      return {
+        seat,
+        team: teamOfSeat[seat],
+        hand: hands[seat],
+        vira,
+        manilha,
+        rules,
+        scores,
+        teamOfSeat,
+        completedVazaPlays: allVazaPlays,
+        completedVazaResults: vazaResults,
+        currentVazaPlays,
+        handValue: valueNow(),
+        blind,
+        partnerSignals
+      };
+    };
     if (onzeSingle) {
       const teamAt11 = teamsAtThreshold[0];
       observer?.onMaoDeOnze?.({ mode: "single", teamAt11, value: effectiveBase });
@@ -839,6 +890,109 @@ var Truco = (() => {
     ]
   };
 
+  // src/genomes/melhorada_6.json
+  var melhorada_6_default = {
+    cardWeights: [
+      -0.09947244764125453,
+      -0.7467170654120511,
+      1.747639614872926,
+      1.5145943307693546,
+      0.9447357519209316,
+      0.054774220921203334,
+      -1.3040695303454708,
+      -2.3949226164393087,
+      -0.040459349377636844,
+      -1.0172114742998444,
+      0,
+      -0.2001646835044764,
+      -0.6118375219332245,
+      -0.3133274409815786,
+      -0.09919224086195245,
+      -1.39621460351137,
+      -0.18534942731720774,
+      -1.2053875528035682,
+      -0.5987664801918458,
+      0.2704426265378383
+    ],
+    betWeights: [
+      -0.42259371284497926,
+      0.9703532543499023,
+      1.5892890401414732,
+      2.280868402355904,
+      0.8590295994103726,
+      -0.583898725829009,
+      -1.437725080129685,
+      1.0061337783462814,
+      1.6309927462855818,
+      0,
+      0.8319185996676355,
+      -0.30598660992664356,
+      -0.05837362830966189,
+      -0.20705665479729374,
+      0.6978757400107399,
+      -2.0809704247565217,
+      0.305995317271937,
+      0.2568162377689622,
+      0.07901513646045474,
+      -0.03485351890608802
+    ],
+    thrCall: 1.6986662337955925,
+    thrAccept: -0.5771082665716245,
+    thrRaise: 1.5661671734406402,
+    pBluff: -2.6385323651746093,
+    playTemp: -0.7272449111257443,
+    cardBucketThresholds: [
+      0.966570424372298,
+      0.1779163750510066,
+      1.0738897248043748,
+      0.12390713800262455,
+      0.41987979733294745,
+      0.5762108479712053,
+      0.1450507417738277,
+      0.5070461005534337,
+      0.6175107051808801
+    ],
+    cardBucketWeights: [
+      -0.511329320344379,
+      -0.11594786705105378,
+      0.07408139569001534,
+      -0.2634019871186127,
+      0.0012481302909117253,
+      -0.023919081388614316,
+      0.30892221721398583,
+      -0.898894693348576,
+      -0.08293224725706369,
+      -0.27947527111927517,
+      -0.1451863839384302,
+      -0.3847463179195418
+    ],
+    betBucketThresholds: [
+      0.7011041977430426,
+      1.1765637501981314,
+      0.0847963234031619,
+      0.1597867063776348,
+      0.9246125098122981,
+      -0.7517272028004811,
+      0.4649854487652979,
+      0.8585034356181124,
+      1.303866593579698
+    ],
+    betBucketWeights: [
+      0.014897405363492655,
+      -0.6293921618293316,
+      -0.015392200821511576,
+      0.274996072609051,
+      0.2308225160247684,
+      0.07174921874316867,
+      0.6007565008481028,
+      0.8987139976758896,
+      -0.13325069245316404,
+      0.13453472121145518,
+      0,
+      0.0901143618956846
+    ]
+  };
+
   // src/players/bot.ts
   function maxStrength(view) {
     return view.rules.rankOrder.length + view.rules.manilhaSuitOrder.length - 1;
@@ -907,8 +1061,9 @@ var Truco = (() => {
   var CONTEXT_FEATURE_COUNT = 12;
   var CARD_OWN_FEATURE_COUNT = 8;
   var HAND_STRENGTH_FEATURE_COUNT = 6;
+  var GTO_FEATURE_COUNT = 2;
   var CARD_FEATURE_COUNT = CARD_OWN_FEATURE_COUNT + CONTEXT_FEATURE_COUNT;
-  var BET_FEATURE_COUNT = HAND_STRENGTH_FEATURE_COUNT + CONTEXT_FEATURE_COUNT;
+  var BET_FEATURE_COUNT = HAND_STRENGTH_FEATURE_COUNT + CONTEXT_FEATURE_COUNT + GTO_FEATURE_COUNT;
   var CONTEXT_FEATURE_NAMES = [
     "bias",
     "rodada",
@@ -945,9 +1100,11 @@ var Truco = (() => {
     ...CARD_OWN_FEATURE_NAMES,
     ...CONTEXT_FEATURE_NAMES
   ];
+  var GTO_FEATURE_NAMES = ["bluffability", "aFrenteTarde"];
   var BET_FEATURE_NAMES = [
     ...HAND_STRENGTH_FEATURE_NAMES,
-    ...CONTEXT_FEATURE_NAMES
+    ...CONTEXT_FEATURE_NAMES,
+    ...GTO_FEATURE_NAMES
   ];
   function maxStrength2(view) {
     return view.rules.rankOrder.length + view.rules.manilhaSuitOrder.length - 1;
@@ -1119,7 +1276,12 @@ var Truco = (() => {
       hand.length / cpp
       // 5: cartas restantes
     ];
-    return [...strength, ...pre.context];
+    const results = view.completedVazaResults;
+    const bluffability = Math.max(0, 0.5 - avg) * 2;
+    const wonFirst = results.length >= 1 && results[0].winningTeam === view.team ? 1 : 0;
+    const vazaNorm = cpp > 1 ? results.length / (cpp - 1) : 0;
+    const aFrenteTarde = wonFirst * Math.min(1, vazaNorm);
+    return [...strength, ...pre.context, bluffability, aFrenteTarde];
   }
 
   // src/players/buckets.ts
@@ -1297,12 +1459,21 @@ var Truco = (() => {
   function sigmoid(x) {
     return 1 / (1 + Math.exp(-x));
   }
+  var BET_MARGIN = 0.6;
+  var BET_NUDGE = 0.6;
+  var CARD_MARGIN = 0.4;
+  var CARD_NUDGE = 0.6;
   var EvolvedBotPlayer = class {
-    constructor(name, genome, rng = Math.random, onDecision) {
+    constructor(name, genome, rng = Math.random, onDecision, ignoreSignals = false) {
       this.name = name;
       this.genome = genome;
       this.rng = rng;
       this.onDecision = onDecision;
+      this.ignoreSignals = ignoreSignals;
+    }
+    /** Sinais do parceiro (undefined se a comunicacao esta desligada). */
+    signals(view) {
+      return this.ignoreSignals ? void 0 : view.partnerSignals;
     }
     /** Score S da situacao para decisoes de aposta (linear + faixas). */
     situationScore(view) {
@@ -1311,8 +1482,13 @@ var Truco = (() => {
     async chooseAction(view, canRaise) {
       if (canRaise && !view.blind) {
         const s = this.situationScore(view);
+        let propose = s > this.genome.thrCall;
+        const ps = this.signals(view);
+        if (ps && Math.abs(s - this.genome.thrCall) < BET_MARGIN) {
+          propose = s + BET_NUDGE * (ps.trucoAdvice - 1) > this.genome.thrCall;
+        }
         const bluff = this.rng() < sigmoid(this.genome.pBluff);
-        if (s > this.genome.thrCall || bluff) {
+        if (propose || bluff) {
           this.onDecision?.({
             seat: view.seat,
             name: this.name,
@@ -1345,6 +1521,17 @@ var Truco = (() => {
       if (view.blind || hand.length === 1) return hand[0];
       const pre = precompute(view);
       const scores = hand.map((c) => cardScore(this.genome, view, c, pre));
+      const ps = this.signals(view);
+      if (ps) {
+        const sorted = [...scores].sort((a, b) => b - a);
+        if ((sorted[0] ?? 0) - (sorted[1] ?? 0) < CARD_MARGIN) {
+          const max = view.rules.rankOrder.length + view.rules.manilhaSuitOrder.length - 1;
+          for (let i = 0; i < scores.length; i++) {
+            const strNorm = cardStrength(hand[i], view.vira, view.rules) / max;
+            scores[i] += CARD_NUDGE * (1 - ps.canWin) * strNorm;
+          }
+        }
+      }
       const temp = Math.max(0, this.genome.playTemp);
       if (temp <= 1e-6) {
         let best = 0;
@@ -1365,8 +1552,12 @@ var Truco = (() => {
       const s = this.situationScore(view);
       const bluff = this.rng() < sigmoid(this.genome.pBluff) * 0.5;
       if (canCounter && (s > this.genome.thrRaise || bluff)) return "raise";
-      if (s > this.genome.thrAccept) return "accept";
-      return "run";
+      let accept = s > this.genome.thrAccept;
+      const ps = this.signals(view);
+      if (ps && Math.abs(s - this.genome.thrAccept) < BET_MARGIN) {
+        accept = s + BET_NUDGE * (ps.trucoAdvice - 1) > this.genome.thrAccept;
+      }
+      return accept ? "accept" : "run";
     }
     async decideMaoDeOnze(view, ctx) {
       const all = [...view.hand, ...ctx.partnerHands.flat()];
@@ -1394,16 +1585,20 @@ var Truco = (() => {
     if (!okArr(g.cardWeights, CARD_FEATURE_COUNT)) {
       throw new Error(`cardWeights invalido (esperado ${CARD_FEATURE_COUNT} numeros).`);
     }
-    if (!okArr(g.betWeights, BET_FEATURE_COUNT)) {
-      throw new Error(`betWeights invalido (esperado ${BET_FEATURE_COUNT} numeros).`);
-    }
+    const cardWeights = g.cardWeights;
+    const OLD_BET = BET_FEATURE_COUNT - GTO_FEATURE_COUNT;
+    let betWeights;
+    if (okArr(g.betWeights, BET_FEATURE_COUNT)) betWeights = g.betWeights;
+    else if (okArr(g.betWeights, OLD_BET))
+      betWeights = [...g.betWeights, ...new Array(GTO_FEATURE_COUNT).fill(0)];
+    else throw new Error(`betWeights invalido (esperado ${OLD_BET} ou ${BET_FEATURE_COUNT} numeros).`);
     for (const k of ["thrCall", "thrAccept", "thrRaise", "pBluff", "playTemp"]) {
       if (typeof g[k] !== "number") throw new Error(`Campo ${k} ausente/invalido no genoma.`);
     }
     const bucket = (a, n, fill) => okArr(a, n) ? a : fill;
     return {
-      cardWeights: g.cardWeights,
-      betWeights: g.betWeights,
+      cardWeights,
+      betWeights,
       thrCall: g.thrCall,
       thrAccept: g.thrAccept,
       thrRaise: g.thrRaise,
@@ -1438,6 +1633,7 @@ var Truco = (() => {
   var melhorada3Genome = parseGenome(melhorada_3_default);
   var melhorada4Genome = parseGenome(melhorada_4_default);
   var melhorada5Genome = parseGenome(melhorada_5_default);
+  var melhorada6Genome = parseGenome(melhorada_6_default);
   var PERSONALITIES = [
     {
       id: "inocente",
@@ -1474,6 +1670,12 @@ var Truco = (() => {
       label: "Melhorada 5",
       description: "Fitness ponderado (ultima domina) + piso 50%. Ganha de TODAS, inclusive m4 (~52%).",
       create: (name, rng, onDecision) => new EvolvedBotPlayer(name, melhorada5Genome, rng, onDecision)
+    },
+    {
+      id: "melhorada_6",
+      label: "Melhorada 6",
+      description: "Comunicacao minima (sinais do parceiro quando incerta) + intuicoes GTO de blefe.",
+      create: (name, rng, onDecision) => new EvolvedBotPlayer(name, melhorada6Genome, rng, onDecision)
     }
   ];
   function getPersonality(id) {
@@ -1593,18 +1795,21 @@ var Truco = (() => {
 
   // src/players/humanWeb.ts
   var HumanWebPlayer = class {
-    constructor(name, hooks) {
+    constructor(name, hooks, consultProvider) {
       this.name = name;
       this.hooks = hooks;
+      this.consultProvider = consultProvider;
     }
     chooseAction(view, canRaise) {
+      const consult = this.consultProvider?.(view.seat);
       return new Promise(
-        (resolve) => this.hooks.onActionPrompt({ view, canRaise, resolve })
+        (resolve) => this.hooks.onActionPrompt({ view, canRaise, consult, resolve })
       );
     }
     respondToRaise(view, proposal, canCounter) {
+      const consult = this.consultProvider?.(view.seat);
       return new Promise(
-        (resolve) => this.hooks.onRaisePrompt({ view, proposal, canCounter, resolve })
+        (resolve) => this.hooks.onRaisePrompt({ view, proposal, canCounter, consult, resolve })
       );
     }
     decideMaoDeOnze(view, ctx) {
@@ -1615,7 +1820,6 @@ var Truco = (() => {
   };
 
   // src/web/play-entry.ts
-  var HUMAN_SEAT = 0;
   function seededRng2(seed) {
     let s = seed >>> 0;
     return () => {
@@ -1641,34 +1845,114 @@ var Truco = (() => {
       }
     };
   }
+  function noInitiateRaise(inner) {
+    return {
+      name: inner.name,
+      chooseAction(view, _canRaise) {
+        return inner.chooseAction(view, false);
+      },
+      respondToRaise(view, proposal, _canCounter) {
+        return inner.respondToRaise(view, proposal, false);
+      },
+      decideMaoDeOnze(view, ctx) {
+        return inner.decideMaoDeOnze(view, ctx);
+      }
+    };
+  }
   async function playInteractive(opts, ui) {
-    const human = new HumanWebPlayer(opts.humanName ?? "Voce", ui);
+    const rules = TRUCO_PAULISTA;
+    const teamOfSeat = assignTeams(rules);
+    const seats = opts.seats;
+    const humanSeats = [];
+    seats.forEach((s, i) => {
+      if (s.kind === "human") humanSeats.push(i);
+    });
+    const partnerIsHuman = (seat) => teamOfSeat.some(
+      (t, other) => other !== seat && t === teamOfSeat[seat] && humanSeats.includes(other)
+    );
     const mkRng = (offset) => opts.seed === void 0 ? void 0 : seededRng2(opts.seed * 100 + offset);
     const delay = opts.stepDelayMs ?? 0;
-    const bot = (id, name, offset) => {
-      const b = getPersonality(id).create(name, mkRng(offset));
-      return delay > 0 ? withDelay(b, delay) : b;
+    const allowPartnerRaise = opts.aiPartnerCanRaise !== false;
+    let liveHands = [];
+    let liveVira = null;
+    let liveVaza = -1;
+    let liveCurrentPlays = [];
+    const partnerOf = (seat) => {
+      const idx = teamOfSeat.findIndex(
+        (t, other) => other !== seat && t === teamOfSeat[seat]
+      );
+      return idx >= 0 ? idx : seat;
     };
-    const players = [
-      human,
-      bot(opts.opp1Bot, "Adv 1", 2),
-      bot(opts.partnerBot, "Parceiro", 3),
-      bot(opts.opp2Bot, "Adv 2", 4)
-    ];
+    const consultProvider = (seat) => {
+      if (!liveVira) return void 0;
+      const pSeat = partnerOf(seat);
+      const team = teamOfSeat[seat];
+      const vira = liveVira;
+      const hand = () => liveHands[pSeat] ?? [];
+      const str2 = (c) => cardStrength(c, vira, rules);
+      return {
+        partnerName: players[pSeat]?.name ?? "Parceiro",
+        signal() {
+          const h = hand();
+          const lvl = signalLevel(h, vira, rules);
+          const man = h.filter((c) => isManilha(c, vira, rules)).length;
+          const three = h.filter((c) => c.rank === "3").length;
+          if (lvl === 2) return { kind: "signal", level: 2, text: man > 1 ? `tenho ${man} manilhas! \u{1F4AA}` : "tenho manilha! \u{1F4AA}" };
+          if (lvl === 1) return { kind: "signal", level: 1, text: three > 1 ? `tenho ${three} cartas 3 \u{1F44C}` : "tenho um 3 \u{1F44C}" };
+          return { kind: "signal", level: 0, text: "n\xE3o tenho nada de especial \u{1F62C}" };
+        },
+        canWin() {
+          const h = hand();
+          if (!h.length) return { kind: "canWin", level: 0, text: "j\xE1 joguei minhas cartas" };
+          const oppBest = liveCurrentPlays.filter((p) => teamOfSeat[p.seat] !== team).reduce((m, p) => Math.max(m, str2(p.card)), -1);
+          const lvl = canWinLevel(h, vira, rules, oppBest);
+          if (lvl === 2) return { kind: "canWin", level: 2, text: "fa\xE7o essa, pode deixar! \u{1F4AA}" };
+          if (lvl === 1) return { kind: "canWin", level: 1, text: "tenho chance, vou tentar \u{1F91E}" };
+          return { kind: "canWin", level: 0, text: "t\xE1 dif\xEDcil, n\xE3o conta comigo \u{1F62C}" };
+        },
+        trucoAdvice() {
+          const h = hand();
+          const lvl = trucoAdviceLevel(h, vira, rules);
+          if (lvl === 2) return { kind: "truco", level: 2, text: "t\xF4 forte, pode pedir/aceitar! \u{1F525}" };
+          if (lvl === 1) return { kind: "truco", level: 1, text: "d\xE1 pra encarar, mas com cuidado \u{1F914}" };
+          return { kind: "truco", level: 0, text: "t\xF4 fraco, melhor n\xE3o \u{1F645}" };
+        }
+      };
+    };
+    const players = seats.map((cfg, seat) => {
+      if (cfg.kind === "human") {
+        return new HumanWebPlayer(cfg.name, ui, consultProvider);
+      }
+      const pers = getPersonality(cfg.botId);
+      const onDecision = opts.explain ? (info) => {
+        const text = info.raised ? formatBetting(info.betting, info.name) : info.cardChoice ? formatCardChoice(info.cardChoice, info.name) : "";
+        if (text) ui.onEvent({ kind: "explain", seat, text });
+      } : void 0;
+      let p = pers.create(cfg.name ?? pers.label, mkRng(seat + 1), onDecision);
+      if (!allowPartnerRaise && partnerIsHuman(seat)) p = noInitiateRaise(p);
+      if (delay > 0) p = withDelay(p, delay);
+      return p;
+    });
     const names = players.map((p) => p.name);
     const observer = {
-      onMatchStart({ teamOfSeat }) {
-        ui.onEvent({ kind: "matchStart", teamOfSeat, names });
+      onMatchStart({ teamOfSeat: tos }) {
+        ui.onEvent({ kind: "matchStart", teamOfSeat: tos, names, humanSeats });
       },
       onHandStart({ handNumber, firstSeat }) {
         ui.onEvent({ kind: "handStart", handNumber, firstSeat });
       },
       onDeal({ vira, manilha, hands }) {
+        liveHands = hands.map((h) => h.slice());
+        liveVira = vira;
+        liveVaza = -1;
+        liveCurrentPlays = [];
+        const humanHands = {};
+        for (const s of humanSeats) humanHands[s] = hands[s].slice();
         ui.onEvent({
           kind: "deal",
           vira,
           manilha,
-          humanHand: hands[HUMAN_SEAT] ?? [],
+          humanHands,
           handSizes: hands.map((h) => h.length)
         });
       },
@@ -1679,6 +1963,16 @@ var Truco = (() => {
         ui.onEvent({ kind: "maoDeOnzeDecision", team, decision });
       },
       onPlay({ seat, card, vazaIndex }) {
+        if (vazaIndex !== liveVaza) {
+          liveVaza = vazaIndex;
+          liveCurrentPlays = [];
+        }
+        liveCurrentPlays.push({ seat, card });
+        const h = liveHands[seat];
+        if (h) {
+          const i = h.findIndex((c) => c.rank === card.rank && c.suit === card.suit);
+          if (i >= 0) h.splice(i, 1);
+        }
         ui.onEvent({ kind: "play", seat, card, vazaIndex });
       },
       onRaiseProposed(proposal) {
@@ -1698,7 +1992,7 @@ var Truco = (() => {
       }
     };
     return playMatch({
-      rules: TRUCO_PAULISTA,
+      rules,
       players,
       observer,
       rng: opts.seed === void 0 ? void 0 : seededRng2(opts.seed),

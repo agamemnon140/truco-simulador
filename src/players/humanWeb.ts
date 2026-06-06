@@ -22,11 +22,36 @@ import {
   RaiseResponse,
 } from "./player.js";
 
+/** Resposta do parceiro a uma consulta (sinal/opiniao). `level`: 0 ruim, 1 medio, 2 bom. */
+export interface ConsultResult {
+  kind: "signal" | "canWin" | "truco";
+  level: 0 | 1 | 2;
+  text: string;
+}
+
+/**
+ * Canal de coordenacao com o PARCEIRO (so para humanos). Permite ao humano, na
+ * sua vez, "perguntar" coisas ao parceiro: se ele acha que faz a vaza, sua
+ * opiniao sobre truco, ou pedir o "sinal" (se tem manilha / 3). As respostas sao
+ * calculadas a partir das cartas reais do parceiro (jogo local).
+ */
+export interface ConsultApi {
+  partnerName: string;
+  /** "Passe sinal": o parceiro revela se tem manilha / 3. */
+  signal(): ConsultResult;
+  /** "Voce faz essa?": o parceiro opina se ganha a vaza atual. */
+  canWin(): ConsultResult;
+  /** "Pedimos/aceitamos truco?": opiniao do parceiro sobre a aposta. */
+  trucoAdvice(): ConsultResult;
+}
+
 /** Pedido para o usuario jogar uma carta ou pedir/aumentar o truco. */
 export interface ActionPrompt {
   view: PlayerView;
   /** Se false, o usuario NAO pode pedir truco (so jogar carta). */
   canRaise: boolean;
+  /** Coordenacao com o parceiro (se houver). */
+  consult?: ConsultApi;
   /** A UI chama com {type:"play",card} (card deve ser um item de view.hand) ou {type:"raise"}. */
   resolve: (action: Action) => void;
 }
@@ -37,6 +62,8 @@ export interface RaisePrompt {
   proposal: Proposal;
   /** Se false, nao pode reaumentar (so aceitar/correr). */
   canCounter: boolean;
+  /** Coordenacao com o parceiro (se houver). */
+  consult?: ConsultApi;
   resolve: (response: RaiseResponse) => void;
 }
 
@@ -58,11 +85,14 @@ export class HumanWebPlayer implements Player {
   constructor(
     readonly name: string,
     private readonly hooks: HumanWebHooks,
+    /** Fornece o canal de coordenacao com o parceiro deste assento (opcional). */
+    private readonly consultProvider?: (seat: number) => ConsultApi | undefined,
   ) {}
 
   chooseAction(view: PlayerView, canRaise: boolean): Promise<Action> {
+    const consult = this.consultProvider?.(view.seat);
     return new Promise<Action>((resolve) =>
-      this.hooks.onActionPrompt({ view, canRaise, resolve }),
+      this.hooks.onActionPrompt({ view, canRaise, consult, resolve }),
     );
   }
 
@@ -71,8 +101,9 @@ export class HumanWebPlayer implements Player {
     proposal: Proposal,
     canCounter: boolean,
   ): Promise<RaiseResponse> {
+    const consult = this.consultProvider?.(view.seat);
     return new Promise<RaiseResponse>((resolve) =>
-      this.hooks.onRaisePrompt({ view, proposal, canCounter, resolve }),
+      this.hooks.onRaisePrompt({ view, proposal, canCounter, consult, resolve }),
     );
   }
 

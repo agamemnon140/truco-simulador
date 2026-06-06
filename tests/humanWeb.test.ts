@@ -138,4 +138,74 @@ describe("HumanWebPlayer", () => {
       expect(result.points).toBeGreaterThanOrEqual(1);
     }
   });
+
+  it("multi-humano: 2 humanos (assentos 0 e 1) e cada um so recebe seus prompts", async () => {
+    const seatsPrompted: number[] = [];
+    const mkAuto = (): HumanWebHooks => ({
+      onActionPrompt: (p) => {
+        seatsPrompted.push(p.view.seat);
+        p.resolve({ type: "play", card: p.view.hand[0]! });
+      },
+      onRaisePrompt: (p) => {
+        seatsPrompted.push(p.view.seat);
+        p.resolve("accept");
+      },
+      onMaoOnzePrompt: (p) => p.resolve("play"),
+    });
+
+    const players: Player[] = [
+      new HumanWebPlayer("H0", mkAuto()), // assento 0 (time 0)
+      new HumanWebPlayer("H1", mkAuto()), // assento 1 (time 1)
+      new ScriptedPlayer("Bot 2"),
+      new ScriptedPlayer("Bot 3"),
+    ];
+
+    const result = await playHand({
+      rules: R,
+      players,
+      teamOfSeat: assignTeams(R),
+      scores: [0, 0],
+      firstSeat: 0,
+      rng: seededRng(11),
+    });
+
+    expect([0, 1, null]).toContain(result.winningTeam);
+    // Cada HumanWebPlayer so foi consultado sobre o proprio assento.
+    expect(seatsPrompted.length).toBeGreaterThan(0);
+    expect(seatsPrompted.every((s) => s === 0 || s === 1)).toBe(true);
+  });
+
+  it("decorator 'parceiro IA nao pede truco' forca jogar carta (canRaise=false)", async () => {
+    // Bot stub que SEMPRE pediria truco quando canRaise=true; ao ser embrulhado,
+    // o wrapper o chama com canRaise=false, entao ele joga a 1a carta.
+    let lastCanRaise: boolean | undefined;
+    const greedy: Player = {
+      name: "Guloso",
+      async chooseAction(view, canRaise) {
+        lastCanRaise = canRaise;
+        return canRaise ? { type: "raise" } : { type: "play", card: view.hand[0]! };
+      },
+      async respondToRaise() {
+        return "accept";
+      },
+      async decideMaoDeOnze() {
+        return "play";
+      },
+    };
+    // Reproduz o wrapper de play-entry (chooseAction sempre com canRaise=false).
+    const noInitiate: Player = {
+      name: greedy.name,
+      chooseAction: (view) => greedy.chooseAction(view, false),
+      respondToRaise: (view, proposal) => greedy.respondToRaise(view, proposal, false),
+      decideMaoDeOnze: (view, ctx) => greedy.decideMaoDeOnze(view, ctx),
+    };
+
+    const view = makeView({
+      hand: [C(Rank.Tres, Suit.Paus), C(Rank.As, Suit.Copas)],
+      vira: C(Rank.Quatro, Suit.Ouros),
+    });
+    const action = await noInitiate.chooseAction(view, true);
+    expect(lastCanRaise).toBe(false); // foi chamado com canRaise=false
+    expect(action).toEqual({ type: "play", card: view.hand[0] });
+  });
 });
