@@ -21,9 +21,11 @@ export const CARD_OWN_FEATURE_COUNT = 8;
 export const HAND_STRENGTH_FEATURE_COUNT = 6;
 /** Features de intuicao GTO (apendice em betFeatures): bluffability + aFrenteTarde. */
 export const GTO_FEATURE_COUNT = 2;
+/** Features do MODELO DE OPONENTE (apendice em betFeatures): m7. */
+export const OPP_FEATURE_COUNT = 4;
 export const CARD_FEATURE_COUNT = CARD_OWN_FEATURE_COUNT + CONTEXT_FEATURE_COUNT; // 20
 export const BET_FEATURE_COUNT =
-  HAND_STRENGTH_FEATURE_COUNT + CONTEXT_FEATURE_COUNT + GTO_FEATURE_COUNT; // 20
+  HAND_STRENGTH_FEATURE_COUNT + CONTEXT_FEATURE_COUNT + GTO_FEATURE_COUNT + OPP_FEATURE_COUNT; // 24
 
 /** Nomes legiveis das features de contexto (mesma ordem de contextFeatures). */
 export const CONTEXT_FEATURE_NAMES: readonly string[] = [
@@ -72,11 +74,17 @@ export const CARD_FEATURE_NAMES: readonly string[] = [
 /** Nomes das features de intuicao GTO (apendice). */
 export const GTO_FEATURE_NAMES: readonly string[] = ["bluffability", "aFrenteTarde"];
 
-/** Nomes do vetor completo de betFeatures (forca + contexto + GTO). */
+/** Nomes das features do modelo de oponente (apendice; m7). */
+export const OPP_FEATURE_NAMES: readonly string[] = ["oppFold", "oppTruco", "oppBluff", "oppAggr"];
+/** Vetor neutro (priors 0.5) — usado quando nao ha modelo de oponente. */
+export const NEUTRAL_OPP_FEATURES: readonly number[] = new Array(OPP_FEATURE_COUNT).fill(0.5);
+
+/** Nomes do vetor completo de betFeatures (forca + contexto + GTO + oponente). */
 export const BET_FEATURE_NAMES: readonly string[] = [
   ...HAND_STRENGTH_FEATURE_NAMES,
   ...CONTEXT_FEATURE_NAMES,
   ...GTO_FEATURE_NAMES,
+  ...OPP_FEATURE_NAMES,
 ];
 
 /** Forca maxima possivel de uma carta nesta variante (manilha mais forte). */
@@ -271,7 +279,11 @@ export function cardFeatures(
 }
 
 /** Features de FORCA da mao + contexto (tamanho BET_FEATURE_COUNT). */
-export function betFeatures(view: PlayerView, pre: Precomputed): number[] {
+export function betFeatures(
+  view: PlayerView,
+  pre: Precomputed,
+  oppFeatures: readonly number[] = NEUTRAL_OPP_FEATURES,
+): number[] {
   const max = maxStrength(view);
   const hand = view.hand;
   const cpp = view.rules.cardsPerPlayer || 1;
@@ -307,5 +319,5 @@ export function betFeatures(view: PlayerView, pre: Precomputed): number[] {
   const vazaNorm = cpp > 1 ? results.length / (cpp - 1) : 0;
   const aFrenteTarde = wonFirst * Math.min(1, vazaNorm);
 
-  return [...strength, ...pre.context, bluffability, aFrenteTarde];
+  return [...strength, ...pre.context, bluffability, aFrenteTarde, ...oppFeatures];
 }

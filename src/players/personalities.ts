@@ -11,11 +11,14 @@ import melhorada3Json from "../genomes/melhorada_3.json";
 import melhorada4Json from "../genomes/melhorada_4.json";
 import melhorada5Json from "../genomes/melhorada_5.json";
 import melhorada6Json from "../genomes/melhorada_6.json";
+import melhorada7Json from "../genomes/melhorada_7.json";
 import { Rng } from "../core/deck.js";
+import { TRUCO_PAULISTA } from "../core/rules.js";
 import { BotPlayer } from "./bot.js";
 import { EvolvedBotPlayer } from "./evolvedBot.js";
 import { DecisionInfo } from "./explain.js";
 import { parseGenome } from "./genome.js";
+import { OpponentModel } from "./opponentModel.js";
 import { Player } from "./player.js";
 
 export type PersonalityId =
@@ -25,7 +28,8 @@ export type PersonalityId =
   | "melhorada_3"
   | "melhorada_4"
   | "melhorada_5"
-  | "melhorada_6";
+  | "melhorada_6"
+  | "melhorada_7";
 
 export interface Personality {
   id: PersonalityId;
@@ -41,6 +45,7 @@ const melhorada3Genome = parseGenome(melhorada3Json);
 const melhorada4Genome = parseGenome(melhorada4Json);
 const melhorada5Genome = parseGenome(melhorada5Json);
 const melhorada6Genome = parseGenome(melhorada6Json);
+const melhorada7Genome = parseGenome(melhorada7Json);
 
 export const PERSONALITIES: Personality[] = [
   {
@@ -90,6 +95,20 @@ export const PERSONALITIES: Personality[] = [
     description: "Comunicacao minima (sinais do parceiro quando incerta) + intuicoes GTO de blefe.",
     create: (name, rng, onDecision) =>
       new EvolvedBotPlayer(name, melhorada6Genome, rng, onDecision),
+  },
+  {
+    id: "melhorada_7",
+    label: "Melhorada 7",
+    description: "Modela os adversarios (quem truca/corre/blefa) e adapta para explora-los.",
+    create: (name, rng, onDecision) =>
+      new EvolvedBotPlayer(
+        name,
+        melhorada7Genome,
+        rng,
+        onDecision,
+        false,
+        new OpponentModel(TRUCO_PAULISTA),
+      ),
   },
 ];
 

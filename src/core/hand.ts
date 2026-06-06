@@ -24,6 +24,7 @@ import { Card, Seat, TeamId, cardsEqual } from "./types.js";
 import { Play, VazaResult, resolveVaza } from "./vaza.js";
 import { partnerSignalsOf } from "../players/consult.js";
 import {
+  GameEvent,
   MaoDeOnzeContext,
   MaoDeOnzeDecision,
   Player,
@@ -186,6 +187,17 @@ export async function playHand(cfg: HandConfig): Promise<HandResult> {
     hands: hands.map((h) => h.slice()),
   });
 
+  /** Despacha um evento a TODOS os jogadores (cada um filtra o que e do oponente). */
+  const broadcast = (ev: GameEvent): void => {
+    for (let i = 0; i < n; i++) players[i]!.observe?.(ev, i as Seat);
+  };
+  /** Encerra a mao: notifica o observador (UI) e os jogadores (modelagem). */
+  const emitHandEnd = (r: HandResult): void => {
+    observer?.onHandEnd?.(r);
+    broadcast({ type: "handEnd", winningTeam: r.winningTeam, points: r.points });
+  };
+  broadcast({ type: "handStart", teamOfSeat, vira });
+
   /** Parceiro de equipe (primeiro assento do mesmo time != seat); -1 se nenhum. */
   const partnerSeat = (seat: Seat): Seat => {
     for (let k = 1; k < n; k++) {
@@ -268,7 +280,7 @@ export async function playHand(cfg: HandConfig): Promise<HandResult> {
         points: rules.baseValue,
         reason: "fold",
       };
-      observer?.onHandEnd?.(result);
+      emitHandEnd(result);
       return result;
     }
   } else if (onzeBoth) {
@@ -298,6 +310,13 @@ export async function playHand(cfg: HandConfig): Promise<HandResult> {
         forfeitValue: forfeitValueOnRun(betting, rules),
       };
       observer?.onRaiseProposed?.(proposal);
+      broadcast({
+        type: "raiseProposed",
+        seat: proposer,
+        team: proposingTeam,
+        level: lvl.index,
+        value: lvl.value,
+      });
 
       const responderSeat = firstOpponentAfter(
         proposer,
@@ -312,6 +331,13 @@ export async function playHand(cfg: HandConfig): Promise<HandResult> {
           canCounter,
         );
       observer?.onRaiseResponse?.({ responder: responderSeat, response });
+      broadcast({
+        type: "raiseResponse",
+        seat: responderSeat,
+        team: teamOfSeat[responderSeat]!,
+        response,
+        proposingTeam,
+      });
 
       if (response === "run") {
         // Quem propos leva o valor estabelecido antes do aumento.
@@ -358,7 +384,7 @@ export async function playHand(cfg: HandConfig): Promise<HandResult> {
               points: outcome.points,
               reason: "run",
             };
-            observer?.onHandEnd?.(result);
+            emitHandEnd(result);
             return result;
           }
           // Aumento aceito: o mesmo jogador agora deve jogar uma carta.
@@ -376,6 +402,7 @@ export async function playHand(cfg: HandConfig): Promise<HandResult> {
         hand.splice(idx, 1);
         plays.push({ seat, card: action.card });
         observer?.onPlay?.({ seat, card: action.card, vazaIndex: v });
+        broadcast({ type: "play", seat, team, card: action.card, vazaIndex: v });
         break;
       }
     }
@@ -392,7 +419,7 @@ export async function playHand(cfg: HandConfig): Promise<HandResult> {
         points: 0,
         reason: "cancelled",
       };
-      observer?.onHandEnd?.(handResult);
+      emitHandEnd(handResult);
       return handResult;
     }
     if (decision !== "continue") {
@@ -401,7 +428,7 @@ export async function playHand(cfg: HandConfig): Promise<HandResult> {
         points: valueNow(),
         reason: "vazas",
       };
-      observer?.onHandEnd?.(handResult);
+      emitHandEnd(handResult);
       return handResult;
     }
 
@@ -415,6 +442,6 @@ export async function playHand(cfg: HandConfig): Promise<HandResult> {
     points: 0,
     reason: "cancelled",
   };
-  observer?.onHandEnd?.(fallback);
+  emitHandEnd(fallback);
   return fallback;
 }

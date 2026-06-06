@@ -207,6 +207,20 @@ deveriam ajudar (é o teto **TMECor** do CFR), mas para extrair valor é preciso
 intuição **GTO ≠ exploração** contra bots exploráveis. (`npm run train:rr6`,
 avaliação `tsx src/training/evaluate-m6.ts`.)
 
+A `melhorada_7` ataca o **pólo da exploração**: um **canal de observação** no
+motor (`Player.observe`) alimenta um **modelo dos adversários** (com que
+frequência cada time truca/corre/blefa, força das cartas), e essas estatísticas
+viram **features evoluídas** de aposta. A m7 fica **marginalmente à frente / na
+prática empatada com a m6** (pior caso ~52%, dentro do ruído). **A ablação é
+honesta e clara: a inferência é NEUTRA** — m7-com-modelo × m7-sem-modelo = 50.0%,
+e contra um bot que sempre corre o modelo só agrega +0.2pp (a política estática
+já ganha ~87%). Motivos: **dados por partida são escassos** (poucas mãos até 12
+pontos) e a política estática **já explora**; por isso o GA deixou os pesos de
+oponente ~0. **Lição:** a saturação persiste — para a inferência pagar é preciso
+**memória persistente entre partidas** (modelar um oponente fixo por muitas mãos)
+e re-evoluir com esse sinal confiável. (`npm run train:rr7`, avaliação
+`tsx src/training/evaluate-m7.ts`.)
+
 ## Equilíbrio (GTO) — resolver matematicamente (CFR)
 
 Toda a linha m1…m5 é **best-response** (melhor resposta a um pool) — daí a

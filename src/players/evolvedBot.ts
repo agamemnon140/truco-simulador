@@ -12,7 +12,7 @@
 
 import { Rng } from "../core/deck.js";
 import { cardStrength } from "../core/ranking.js";
-import { Card, cardsEqual } from "../core/types.js";
+import { Card, Seat, cardsEqual } from "../core/types.js";
 import {
   DecisionInfo,
   explainBetting,
@@ -20,9 +20,11 @@ import {
 } from "./explain.js";
 import { precompute } from "./features.js";
 import { Genome } from "./genome.js";
+import { OpponentModel } from "./opponentModel.js";
 import { cardScore, situationScore } from "./score.js";
 import {
   Action,
+  GameEvent,
   MaoDeOnzeContext,
   MaoDeOnzeDecision,
   Player,
@@ -51,16 +53,23 @@ export class EvolvedBotPlayer implements Player {
     private readonly onDecision?: (info: DecisionInfo) => void,
     /** Se true, IGNORA os sinais do parceiro (desliga a comunicacao) — p/ ablacao. */
     private readonly ignoreSignals = false,
+    /** Modelo dos adversarios (m7). Quando presente, alimenta as features de oponente. */
+    private readonly opponentModel?: OpponentModel,
   ) {}
+
+  /** Recebe os eventos da partida e atualiza o modelo de oponente (se houver). */
+  observe(event: GameEvent, selfSeat: Seat): void {
+    this.opponentModel?.observe(event, selfSeat);
+  }
 
   /** Sinais do parceiro (undefined se a comunicacao esta desligada). */
   private signals(view: PlayerView): PlayerView["partnerSignals"] {
     return this.ignoreSignals ? undefined : view.partnerSignals;
   }
 
-  /** Score S da situacao para decisoes de aposta (linear + faixas). */
+  /** Score S da situacao para decisoes de aposta (linear + faixas + modelo de oponente). */
   private situationScore(view: PlayerView): number {
-    return situationScore(this.genome, view, precompute(view));
+    return situationScore(this.genome, view, precompute(view), this.opponentModel?.features());
   }
 
   async chooseAction(view: PlayerView, canRaise: boolean): Promise<Action> {

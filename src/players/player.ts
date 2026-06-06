@@ -15,6 +15,24 @@ import { Play, VazaResult } from "../core/vaza.js";
 import { Card, Rank, Seat, TeamId } from "../core/types.js";
 import { PartnerSignals } from "./consult.js";
 
+/**
+ * Evento observavel da partida, despachado a TODOS os jogadores via `observe`.
+ * Permite a um bot construir um MODELO dos adversarios (quem truca/corre/aceita,
+ * quais cartas joga). Os eventos sao verdadeiros (refletem o que aconteceu).
+ */
+export type GameEvent =
+  | { type: "handStart"; teamOfSeat: readonly TeamId[]; vira: Card }
+  | { type: "play"; seat: Seat; team: TeamId; card: Card; vazaIndex: number }
+  | { type: "raiseProposed"; seat: Seat; team: TeamId; level: number; value: number }
+  | {
+      type: "raiseResponse";
+      seat: Seat;
+      team: TeamId;
+      response: RaiseResponse;
+      proposingTeam: TeamId;
+    }
+  | { type: "handEnd"; winningTeam: TeamId | null; points: number };
+
 /** Visao do estado que um jogador recebe para decidir. */
 export interface PlayerView {
   /** Assento deste jogador. */
@@ -117,4 +135,10 @@ export interface Player {
     view: PlayerView,
     ctx: MaoDeOnzeContext,
   ): Promise<MaoDeOnzeDecision>;
+
+  /**
+   * Opcional: recebe TODOS os eventos da partida (proprios e dos outros), para
+   * bots que modelam os adversarios. `selfSeat` e o assento deste jogador.
+   */
+  observe?(event: GameEvent, selfSeat: Seat): void;
 }

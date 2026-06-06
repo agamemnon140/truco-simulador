@@ -22,7 +22,13 @@ import {
   N_BUCKETS,
   THRESH_PER_VAR,
 } from "./buckets.js";
-import { BET_FEATURE_COUNT, CARD_FEATURE_COUNT, GTO_FEATURE_COUNT } from "./features.js";
+import {
+  BET_FEATURE_COUNT,
+  CARD_FEATURE_COUNT,
+  CONTEXT_FEATURE_COUNT,
+  GTO_FEATURE_COUNT,
+  HAND_STRENGTH_FEATURE_COUNT,
+} from "./features.js";
 
 export interface Genome {
   /** Pesos lineares do cardScore (length = CARD_FEATURE_COUNT). */
@@ -174,14 +180,19 @@ export function parseGenome(obj: unknown): Genome {
     throw new Error(`cardWeights invalido (esperado ${CARD_FEATURE_COUNT} numeros).`);
   }
   const cardWeights = g.cardWeights;
-  // MIGRACAO: betWeights antigo (sem as features GTO) e aceito e completado com
-  // ZEROS nas features novas -> comportamento identico nelas.
-  const OLD_BET = BET_FEATURE_COUNT - GTO_FEATURE_COUNT;
-  let betWeights: number[];
-  if (okArr(g.betWeights, BET_FEATURE_COUNT)) betWeights = g.betWeights;
-  else if (okArr(g.betWeights, OLD_BET))
-    betWeights = [...g.betWeights, ...new Array<number>(GTO_FEATURE_COUNT).fill(0)];
-  else throw new Error(`betWeights invalido (esperado ${OLD_BET} ou ${BET_FEATURE_COUNT} numeros).`);
+  // MIGRACAO: betWeights antigo (sem as features GTO e/ou de oponente) e aceito e
+  // completado com ZEROS nas features novas -> comportamento identico nelas.
+  // Comprimentos historicos: base (18), base+GTO (20), base+GTO+OPP=atual (24).
+  const base = HAND_STRENGTH_FEATURE_COUNT + CONTEXT_FEATURE_COUNT;
+  const KNOWN_BET = new Set([base, base + GTO_FEATURE_COUNT, BET_FEATURE_COUNT]);
+  const bw = g.betWeights;
+  if (!Array.isArray(bw) || !bw.every((x) => typeof x === "number") || !KNOWN_BET.has(bw.length)) {
+    throw new Error(`betWeights invalido (esperado um de ${[...KNOWN_BET].join("/")} numeros).`);
+  }
+  const betWeights =
+    bw.length === BET_FEATURE_COUNT
+      ? (bw as number[])
+      : [...(bw as number[]), ...new Array<number>(BET_FEATURE_COUNT - bw.length).fill(0)];
   for (const k of ["thrCall", "thrAccept", "thrRaise", "pBluff", "playTemp"] as const) {
     if (typeof g[k] !== "number") throw new Error(`Campo ${k} ausente/invalido no genoma.`);
   }

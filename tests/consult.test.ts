@@ -71,13 +71,12 @@ describe("comunicacao minima — protocolo fixo no EvolvedBot", () => {
 });
 
 describe("migracao do genoma — features GTO em apendice", () => {
-  it("betWeights antigo (sem GTO) -> completado com ZEROS", () => {
+  it("betWeights antigo (18, pre-GTO/oponente) -> completado com ZEROS", () => {
     const g = seedGenome();
-    const old = { ...g, betWeights: g.betWeights.slice(0, g.betWeights.length - 2) };
+    const old = { ...g, betWeights: g.betWeights.slice(0, 18) }; // comprimento historico
     const parsed = parseGenome(JSON.parse(JSON.stringify(old)));
-    expect(parsed.betWeights.length).toBe(g.betWeights.length);
-    expect(parsed.betWeights.at(-1)).toBe(0);
-    expect(parsed.betWeights.at(-2)).toBe(0);
+    expect(parsed.betWeights.length).toBe(g.betWeights.length); // 24
+    expect(parsed.betWeights.slice(18).every((x) => x === 0)).toBe(true); // GTO+oponente = 0
   });
 
   it("rejeita betWeights de tamanho intermediario invalido", () => {

@@ -81,8 +81,9 @@ export function situationScoreParts(
   genome: Genome,
   view: PlayerView,
   pre: Precomputed,
+  oppFeatures?: readonly number[],
 ): ScoreParts {
-  const feats = betFeatures(view, pre);
+  const feats = betFeatures(view, pre, oppFeatures);
   const linear = dot(genome.betWeights, feats);
   const buckets = bucketContribs(
     feats,
@@ -98,8 +99,13 @@ export function cardScore(genome: Genome, view: PlayerView, card: Card, pre: Pre
   return cardScoreParts(genome, view, card, pre).score;
 }
 
-export function situationScore(genome: Genome, view: PlayerView, pre: Precomputed): number {
-  return situationScoreParts(genome, view, pre).score;
+export function situationScore(
+  genome: Genome,
+  view: PlayerView,
+  pre: Precomputed,
+  oppFeatures?: readonly number[],
+): number {
+  return situationScoreParts(genome, view, pre, oppFeatures).score;
 }
 
 /**
