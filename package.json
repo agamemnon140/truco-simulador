@@ -9,7 +9,7 @@
     "demo": "tsx src/cli/demo.ts",
     "demo:verbose": "tsx src/cli/verbose-demo.ts",
     "demo:onze": "tsx src/cli/maoonze-demo.ts",
-    "build:web": "esbuild src/web/browser-entry.ts --bundle --format=iife --global-name=Truco --outfile=web/truco.bundle.js",
+    "build:web": "node scripts/build-web.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

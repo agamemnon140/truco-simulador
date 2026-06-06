@@ -43,13 +43,19 @@ Página estilo terminal (só texto) que roda uma simulação entre bots usando o
 mesmo motor de regras. Tem controles de velocidade, semente e a opção de
 começar 9×9 (para chegar logo na mão de onze).
 
+**Para usar: abra o arquivo `index.html` na raiz do projeto** (duplo clique).
+Ele é **autossuficiente** — o JavaScript está embutido, não depende de mais
+nenhum arquivo nem de servidor. Clique em **“▶ Nova simulação”**.
+
+Regerar a página (após mudar o motor):
+
 ```bash
-npm run build:web   # gera web/truco.bundle.js (esbuild)
+npm run build:web   # gera o index.html (autossuficiente) e web/truco.bundle.js
 ```
 
-Depois é só **abrir `web/index.html`** no navegador (duplo clique / `file://`,
-não precisa de servidor). O bundle já vem versionado, então a página funciona
-mesmo sem rodar o build.
+> `web/index.html` + `web/truco.bundle.js` são a versão em dois arquivos (útil
+> para servir via HTTP / GitHub Pages). O `index.html` da raiz é a versão de
+> arquivo único para abrir direto.
 ```
 
 > Observação: `npm start` precisa de um **terminal real**. Rodar com a entrada
