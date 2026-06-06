@@ -47,3 +47,23 @@ describe("decideHand", () => {
     expect(decideHand([tie(), tie(), tie()], R)).toBe("cancel");
   });
 });
+
+// Regras de empate conforme descritas pelo usuario (regressao explicita):
+//  - empate na 1a vaza: o vencedor da 2a vaza leva a mao;
+//  - empate na 2a OU 3a vaza: o time que ganhou a 1a vaza ganha a mao.
+describe("regras de empate (fraseologia do usuario)", () => {
+  it("empate na 1a vaza -> o vencedor da 2a vaza leva a mao", () => {
+    expect(decideHand([tie(), win(1)], R)).toBe(1);
+    expect(decideHand([tie(), win(0)], R)).toBe(0);
+  });
+
+  it("empate na 2a vaza -> quem ganhou a 1a vaza ganha a mao", () => {
+    expect(decideHand([win(0), tie()], R)).toBe(0);
+    expect(decideHand([win(1), tie()], R)).toBe(1);
+  });
+
+  it("empate na 3a vaza (apos 1-1) -> quem ganhou a 1a vaza ganha a mao", () => {
+    expect(decideHand([win(0), win(1), tie()], R)).toBe(0);
+    expect(decideHand([win(1), win(0), tie()], R)).toBe(1);
+  });
+});

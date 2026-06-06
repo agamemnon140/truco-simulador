@@ -12,6 +12,7 @@ import { MatchObserver, playMatch } from "../core/match.js";
 import { TRUCO_PAULISTA } from "../core/rules.js";
 import { getPersonality } from "../players/personalities.js";
 import { Player } from "../players/player.js";
+import { DecisionInfo, formatBetting, formatCardChoice } from "../players/explain.js";
 import { fmtCard, teamName } from "../cli/render.js";
 import { Card } from "../core/types.js";
 
@@ -35,6 +36,8 @@ export interface SimulateOptions {
   teamABot?: string;
   /** Personalidade do bot da Equipe 2 (assentos impares). Default inocente. */
   teamBBot?: string;
+  /** Se true, intercala no transcript as razoes das jogadas dos bots evoluidos. */
+  explain?: boolean;
 }
 
 /**
@@ -131,11 +134,18 @@ export async function simulate(options: SimulateOptions = {}): Promise<string[]>
     },
   };
 
+  const onDecision = options.explain
+    ? (info: DecisionInfo) => {
+        if (info.raised) line(formatBetting(info.betting, info.name));
+        else if (info.cardChoice) line(formatCardChoice(info.cardChoice, info.name));
+      }
+    : undefined;
+
   const players: Player[] = names.map((n, seat) => {
     const pers = seat % 2 === 0 ? persA : persB;
     const rng =
       options.seed === undefined ? undefined : seededRng(options.seed * 100 + seat + 1);
-    return pers.create(n, rng);
+    return pers.create(n, rng, onDecision);
   });
 
   await playMatch({

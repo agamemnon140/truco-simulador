@@ -29,8 +29,9 @@ configurável para trocar de variante e de formato.
     próprias cartas), vale 1, sem truco.
 - Jogadores **humanos e/ou bots**, escolhidos antes da partida.
 - **Bots com inteligência evoluída** (algoritmo genético): o `inocente`
-  (heurística simples) e o `melhorada_1`, treinado por simulação — ~**76% de
-  vitórias** contra o inocente em partidas com sementes novas.
+  (heurística simples), o `melhorada_1` (~**79%** vs inocente) e o `melhorada_2`
+  (treinado contra inocente+melhorada_1 — **bate a melhorada_1 (~80%)**, mas é
+  fraco vs inocente: efeito de não-transitividade da coevolução).
 - Formatos: duplas (2v2), mano a mano (1v1) e trios (3v3).
 
 ## Como rodar
@@ -42,6 +43,7 @@ npm start          # jogo interativo no terminal (escolha humanos/bots no iníci
 npm run demo       # demonstração automática: bots vs bots, sem digitar nada
 npm run demo:verbose  # demo detalhada: cartas de cada um, jogadas e apostas
 npm run demo:onze     # demonstra a mão de onze (11x9 e 11x11)
+npm run demo:explica  # Melhorada x Inocente, mostrando o "porquê" de cada jogada
 npm test           # bateria de testes (regras, vazas, apostas, mão de onze...)
 
 # Bots evolutivos (algoritmo genético)
@@ -132,12 +134,30 @@ melhores. Para medir habilidade e não sorte, cada candidato joga as **mesmas
 sementes** (baralhos) e em **partidas espelhadas**.
 
 ```bash
-GENS=30 GAMES=120 RUNGS=2 npm run train   # gera src/genomes/melhorada_N.json
-GAMES=800 npm run evaluate                # ~76% de vitórias vs inocente
+POP=60 GENS=40 GAMES=300 RUNGS=2 npm run train   # gera melhorada_1 e melhorada_2
+GAMES=800 npm run evaluate src/genomes/melhorada_1.json                            # vs inocente
+GAMES=800 npm run evaluate src/genomes/melhorada_2.json src/genomes/melhorada_1.json  # genoma vs genoma
 ```
 
+Resultados (1600 partidas espelhadas, sementes novas):
+
+| Confronto | Vitórias |
+|---|---|
+| melhorada_1 vs inocente | ~79% |
+| melhorada_2 vs inocente | ~57% |
+| melhorada_2 vs melhorada_1 | ~80% |
+
+A melhorada_2 **bate a melhorada_1** mas é **mais fraca vs inocente** —
+**não-transitividade** típica da coevolução (treinou contra o pool e se
+especializou em vencer o campeão anterior). Por isso as três personalidades
+ficam disponíveis. *Próximo passo natural*: fitness multi-oponente balanceado
+(não regredir contra ninguém do hall of fame) e/ou um ranking round-robin.
+
 No HTML e no CLI dá para escolher a inteligência de cada equipe (inocente ×
-melhorada_1) e assistir à diferença.
+melhorada_1 × melhorada_2) e assistir à diferença. Há também um **modo
+"explicar jogada"** (toggle no HTML, `npm run demo:explica` no CLI) que mostra,
+a cada decisão da Melhorada, as features que mais pesaram — ex.: *"jogou 6♣:
+cobreParceiro +0.81"* (escolheu não cobrir o parceiro = amarrar).
 
 ## Próximos passos (fora do MVP)
 

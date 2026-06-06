@@ -22,6 +22,56 @@ export const HAND_STRENGTH_FEATURE_COUNT = 6;
 export const CARD_FEATURE_COUNT = CARD_OWN_FEATURE_COUNT + CONTEXT_FEATURE_COUNT; // 20
 export const BET_FEATURE_COUNT = HAND_STRENGTH_FEATURE_COUNT + CONTEXT_FEATURE_COUNT; // 18
 
+/** Nomes legiveis das features de contexto (mesma ordem de contextFeatures). */
+export const CONTEXT_FEATURE_NAMES: readonly string[] = [
+  "bias",
+  "rodada",
+  "minhasVazas",
+  "vazasAdv",
+  "ganhou1a",
+  "lideraVaza",
+  "parceiroLidera",
+  "placarMeu",
+  "placarAdv",
+  "difPlacar",
+  "proximidade",
+  "valorEmJogo",
+];
+
+/** Nomes das features proprias da carta (mesma ordem de cardFeatures). */
+export const CARD_OWN_FEATURE_NAMES: readonly string[] = [
+  "forca",
+  "manilha",
+  "venceMesa",
+  "pWin",
+  "fracMaisFortes",
+  "posicaoVaza",
+  "forcaRelativa",
+  "cobreParceiro",
+];
+
+/** Nomes das features de forca da mao (mesma ordem de betFeatures). */
+export const HAND_STRENGTH_FEATURE_NAMES: readonly string[] = [
+  "bias",
+  "forcaMedia",
+  "melhorCarta",
+  "manilhas",
+  "cartasFortes",
+  "cartasRestantes",
+];
+
+/** Nomes do vetor completo de cardFeatures (carta + contexto). */
+export const CARD_FEATURE_NAMES: readonly string[] = [
+  ...CARD_OWN_FEATURE_NAMES,
+  ...CONTEXT_FEATURE_NAMES,
+];
+
+/** Nomes do vetor completo de betFeatures (forca + contexto). */
+export const BET_FEATURE_NAMES: readonly string[] = [
+  ...HAND_STRENGTH_FEATURE_NAMES,
+  ...CONTEXT_FEATURE_NAMES,
+];
+
 /** Forca maxima possivel de uma carta nesta variante (manilha mais forte). */
 function maxStrength(view: PlayerView): number {
   return view.rules.rankOrder.length + view.rules.manilhaSuitOrder.length - 1;

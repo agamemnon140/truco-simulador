@@ -6,22 +6,26 @@
  */
 
 import melhorada1Json from "../genomes/melhorada_1.json";
+import melhorada2Json from "../genomes/melhorada_2.json";
 import { Rng } from "../core/deck.js";
 import { BotPlayer } from "./bot.js";
 import { EvolvedBotPlayer } from "./evolvedBot.js";
+import { DecisionInfo } from "./explain.js";
 import { parseGenome } from "./genome.js";
 import { Player } from "./player.js";
 
-export type PersonalityId = "inocente" | "melhorada_1";
+export type PersonalityId = "inocente" | "melhorada_1" | "melhorada_2";
 
 export interface Personality {
   id: PersonalityId;
   label: string;
   description: string;
-  create(name: string, rng?: Rng): Player;
+  /** Cria o jogador. `onDecision` (opcional) ativa o modo "explicar jogada". */
+  create(name: string, rng?: Rng, onDecision?: (info: DecisionInfo) => void): Player;
 }
 
 const melhorada1Genome = parseGenome(melhorada1Json);
+const melhorada2Genome = parseGenome(melhorada2Json);
 
 export const PERSONALITIES: Personality[] = [
   {
@@ -33,8 +37,16 @@ export const PERSONALITIES: Personality[] = [
   {
     id: "melhorada_1",
     label: "Melhorada 1",
-    description: "Evoluida por algoritmo genetico (mais forte).",
-    create: (name, rng) => new EvolvedBotPlayer(name, melhorada1Genome, rng),
+    description: "Evoluida vs inocente. Forte no geral (~79% vs inocente).",
+    create: (name, rng, onDecision) =>
+      new EvolvedBotPlayer(name, melhorada1Genome, rng, onDecision),
+  },
+  {
+    id: "melhorada_2",
+    label: "Melhorada 2",
+    description: "Evoluida vs inocente+melhorada_1. Bate a melhorada_1 (~80%), mas fraca vs inocente.",
+    create: (name, rng, onDecision) =>
+      new EvolvedBotPlayer(name, melhorada2Genome, rng, onDecision),
   },
 ];
 

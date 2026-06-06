@@ -12,7 +12,12 @@
 
 import { Rng } from "../core/deck.js";
 import { cardStrength } from "../core/ranking.js";
-import { Card } from "../core/types.js";
+import { Card, cardsEqual } from "../core/types.js";
+import {
+  DecisionInfo,
+  explainBetting,
+  explainCardChoice,
+} from "./explain.js";
 import {
   betFeatures,
   cardFeatures,
@@ -44,6 +49,8 @@ export class EvolvedBotPlayer implements Player {
     readonly name: string,
     private readonly genome: Genome,
     private readonly rng: Rng = Math.random,
+    /** Opcional: recebe a explicacao de cada decisao (para o modo "explicar"). */
+    private readonly onDecision?: (info: DecisionInfo) => void,
   ) {}
 
   /** Score S da situacao para decisoes de aposta. */
@@ -58,10 +65,32 @@ export class EvolvedBotPlayer implements Player {
       const s = this.situationScore(view);
       const bluff = this.rng() < sigmoid(this.genome.pBluff);
       if (s > this.genome.thrCall || bluff) {
+        this.onDecision?.({
+          seat: view.seat,
+          name: this.name,
+          raised: true,
+          betting: explainBetting(this.genome, view),
+        });
         return { type: "raise" };
       }
     }
-    return { type: "play", card: this.pickCard(view) };
+    const card = this.pickCard(view);
+    if (this.onDecision) {
+      const cardChoice = explainCardChoice(this.genome, view);
+      // Marca a carta REALMENTE jogada como escolhida (fiel ao softmax/blefe).
+      cardChoice.cards.forEach((c, i) => {
+        c.chosen = cardsEqual(c.card, card);
+        if (c.chosen) cardChoice.chosenIndex = i;
+      });
+      this.onDecision({
+        seat: view.seat,
+        name: this.name,
+        raised: false,
+        betting: explainBetting(this.genome, view),
+        cardChoice,
+      });
+    }
+    return { type: "play", card };
   }
 
   /** Escolhe a carta: argmax do cardScore, ou softmax se playTemp > 0. */

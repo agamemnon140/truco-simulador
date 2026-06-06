@@ -75,6 +75,7 @@
   .l-vaza { color: var(--dim); }
   .l-score { color: var(--accent); }
   .l-win { color: #e3b341; font-weight: 700; }
+  .l-explain { color: #8b949e; font-style: italic; }
   .cursor { color: var(--accent); animation: blink 1s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
   footer { background: var(--bar); border-top: 1px solid var(--border); padding: 6px 14px; font-size: 11px; color: var(--dim); }
@@ -98,16 +99,21 @@
       Equipe 1
       <select id="botA">
         <option value="melhorada_1" selected>Melhorada 1</option>
+        <option value="melhorada_2">Melhorada 2</option>
         <option value="inocente">Inocente</option>
       </select>
       ×&nbsp;Equipe 2
       <select id="botB">
         <option value="inocente" selected>Inocente</option>
         <option value="melhorada_1">Melhorada 1</option>
+        <option value="melhorada_2">Melhorada 2</option>
       </select>
     </div>
     <div class="control">
       <label class="check"><input type="checkbox" id="onze" /> começar 9×9 (chega na mão de onze)</label>
+    </div>
+    <div class="control">
+      <label class="check"><input type="checkbox" id="explain" /> explicar jogadas da Melhorada</label>
     </div>
     <div class="control">
       semente <input type="number" id="seed" placeholder="aleatória" />
@@ -125,6 +131,7 @@
     const skipBtn = document.getElementById("skip");
     const speedSel = document.getElementById("speed");
     const onzeChk = document.getElementById("onze");
+    const explainChk = document.getElementById("explain");
     const seedInp = document.getElementById("seed");
     const botASel = document.getElementById("botA");
     const botBSel = document.getElementById("botB");
@@ -133,6 +140,7 @@
 
     // Classifica uma linha para colorir conforme o conteudo.
     function classOf(line) {
+      if (line.includes("[explica]")) return "l-explain";
       if (line.startsWith("MAO ")) return "l-mao";
       if (line.includes("VENCEU")) return "l-win";
       if (line.includes("MAO DE ONZE") || line.includes("decidiu:")) return "l-onze";
@@ -165,6 +173,7 @@
       const seed = seedInp.value.trim();
       if (seed !== "") opts.seed = Number(seed);
       if (onzeChk.checked) opts.initialScores = [9, 9];
+      if (explainChk.checked) opts.explain = true;
 
       let lines;
       try {
