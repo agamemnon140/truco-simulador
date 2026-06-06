@@ -4,7 +4,7 @@ import { BotPlayer } from "../src/players/bot.js";
 import { EvolvedBotPlayer } from "../src/players/evolvedBot.js";
 import { seedGenome } from "../src/players/genome.js";
 import { fromVector, randomGenome, seedGenome, toVector } from "../src/players/genome.js";
-import { Contender, evaluateContender } from "../src/training/arena.js";
+import { Contender, evaluateContender, evaluateVsPool } from "../src/training/arena.js";
 import { runGA } from "../src/training/ga.js";
 import { seededRng } from "./helpers.js";
 
@@ -76,5 +76,16 @@ describe("arena — determinismo e sanidade", () => {
     });
     const stats = await evaluateContender(evoContender(res.bestVector), [inocente], trainSeeds, rules);
     expect(stats.winRate).toBeGreaterThan(0.5);
+  });
+
+  it("evaluateVsPool: worstWinRate e o minimo das taxas por oponente", async () => {
+    const pool = [inocente, evo]; // evo vs {inocente, evo(espelho)}
+    const stats = await evaluateVsPool(evo, pool, seeds, rules);
+    expect(stats.perOpponent.length).toBe(2);
+    const min = Math.min(...stats.perOpponent.map((o) => o.winRate));
+    const mean = stats.perOpponent.reduce((s, o) => s + o.winRate, 0) / 2;
+    expect(stats.worstWinRate).toBeCloseTo(min, 12);
+    expect(stats.meanWinRate).toBeCloseTo(mean, 12);
+    expect(stats.worstWinRate).toBeLessThanOrEqual(stats.meanWinRate + 1e-12);
   });
 });

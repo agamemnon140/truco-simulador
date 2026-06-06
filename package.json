@@ -12,6 +12,7 @@
     "demo:explica": "tsx src/cli/explain-demo.ts",
     "build:web": "node scripts/build-web.mjs",
     "train": "tsx src/training/train.ts",
+    "train:rr": "tsx src/training/train-rr.ts",
     "evaluate": "tsx src/training/evaluate.ts",
     "test": "vitest run",
     "test:watch": "vitest"

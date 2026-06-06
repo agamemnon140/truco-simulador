@@ -28,10 +28,10 @@ configurável para trocar de variante e de formato.
   - Ambas com 11: mão jogada **fechada/às cegas** (os jogadores não veem as
     próprias cartas), vale 1, sem truco.
 - Jogadores **humanos e/ou bots**, escolhidos antes da partida.
-- **Bots com inteligência evoluída** (algoritmo genético): o `inocente`
-  (heurística simples), o `melhorada_1` (~**79%** vs inocente) e o `melhorada_2`
-  (treinado contra inocente+melhorada_1 — **bate a melhorada_1 (~80%)**, mas é
-  fraco vs inocente: efeito de não-transitividade da coevolução).
+- **Bots com inteligência evoluída** (algoritmo genético): `inocente`
+  (heurística), `melhorada_1`, `melhorada_2` e a **`melhorada_3`** — treinada por
+  **round-robin de pior caso** contra o pool, ela **ganha de todos os perfis**
+  (pior matchup ~68%). É a mais forte.
 - Formatos: duplas (2v2), mano a mano (1v1) e trios (3v3).
 
 ## Como rodar
@@ -98,13 +98,16 @@ src/
     personalities.ts # registro: inocente, melhorada_1...
     humanCli.ts      # jogador humano via terminal
   training/
-    arena.ts     # partidas em massa (sementes comuns + espelhamento)
+    arena.ts     # partidas em massa (sementes comuns + espelhamento); evaluateVsPool
     ga.ts        # algoritmo genético (seleção, crossover, mutação)
-    train.ts     # evolui em escada (inocente → melhorada_N)
-    evaluate.ts  # mede força vs inocente em sementes novas
+    train.ts     # evolui em escada (fitness = média vs pool)
+    train-rr.ts  # round-robin: fitness = pior caso vs pool fixo (melhorada_3)
+    evaluate.ts  # mede força (vs inocente, ou genoma vs genoma) em sementes novas
     rng.ts       # RNG determinístico do treino
   genomes/
-    melhorada_1.json  # genoma treinado (versionado; usado no jogo)
+    melhorada_1.json  # genomas treinados (versionados; usados no jogo)
+    melhorada_2.json
+    melhorada_3.json
   cli/
     setup.ts     # configuração pré-partida
     render.ts    # formatação para o terminal
@@ -134,9 +137,13 @@ melhores. Para medir habilidade e não sorte, cada candidato joga as **mesmas
 sementes** (baralhos) e em **partidas espelhadas**.
 
 ```bash
-POP=60 GENS=40 GAMES=300 RUNGS=2 npm run train   # gera melhorada_1 e melhorada_2
-GAMES=800 npm run evaluate src/genomes/melhorada_1.json                            # vs inocente
-GAMES=800 npm run evaluate src/genomes/melhorada_2.json src/genomes/melhorada_1.json  # genoma vs genoma
+# Escada (fitness = média vs o pool): gera melhorada_1 e melhorada_2
+POP=60 GENS=40 GAMES=300 RUNGS=2 npm run train
+# Round-robin (fitness = PIOR CASO vs pool fixo {inocente,m1,m2}): gera melhorada_3
+POP=80 GENS=50 GAMES=150 npm run train:rr
+# Avaliar em sementes novas (genoma vs inocente, ou genoma vs genoma)
+GAMES=800 npm run evaluate src/genomes/melhorada_3.json
+GAMES=800 npm run evaluate src/genomes/melhorada_3.json src/genomes/melhorada_1.json
 ```
 
 Resultados (1600 partidas espelhadas, sementes novas):
@@ -146,15 +153,18 @@ Resultados (1600 partidas espelhadas, sementes novas):
 | melhorada_1 vs inocente | ~79% |
 | melhorada_2 vs inocente | ~57% |
 | melhorada_2 vs melhorada_1 | ~80% |
+| **melhorada_3** vs inocente | **~69%** |
+| **melhorada_3** vs melhorada_1 | **~68%** |
+| **melhorada_3** vs melhorada_2 | **~85%** |
 
-A melhorada_2 **bate a melhorada_1** mas é **mais fraca vs inocente** —
-**não-transitividade** típica da coevolução (treinou contra o pool e se
-especializou em vencer o campeão anterior). Por isso as três personalidades
-ficam disponíveis. *Próximo passo natural*: fitness multi-oponente balanceado
-(não regredir contra ninguém do hall of fame) e/ou um ranking round-robin.
+A `melhorada_2` exibiu **não-transitividade** (bate a m1 mas perde p/ inocente):
+treinada com fitness = *média* contra um pool misto, especializou-se em vencer o
+campeão anterior. A `melhorada_3` corrige isso com **fitness de pior caso**
+(o *mínimo* das taxas contra cada membro do pool fixo) — assim é obrigada a ser
+forte contra **todos**, e **ganha de todos os perfis**.
 
 No HTML e no CLI dá para escolher a inteligência de cada equipe (inocente ×
-melhorada_1 × melhorada_2) e assistir à diferença. Há também um **modo
+melhorada_1 × melhorada_2 × melhorada_3) e assistir à diferença. Há também um **modo
 "explicar jogada"** (toggle no HTML, `npm run demo:explica` no CLI) que mostra,
 a cada decisão da Melhorada, as features que mais pesaram — ex.: *"jogou 6♣:
 cobreParceiro +0.81"* (escolheu não cobrir o parceiro = amarrar).

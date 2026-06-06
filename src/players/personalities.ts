@@ -7,6 +7,7 @@
 
 import melhorada1Json from "../genomes/melhorada_1.json";
 import melhorada2Json from "../genomes/melhorada_2.json";
+import melhorada3Json from "../genomes/melhorada_3.json";
 import { Rng } from "../core/deck.js";
 import { BotPlayer } from "./bot.js";
 import { EvolvedBotPlayer } from "./evolvedBot.js";
@@ -14,7 +15,7 @@ import { DecisionInfo } from "./explain.js";
 import { parseGenome } from "./genome.js";
 import { Player } from "./player.js";
 
-export type PersonalityId = "inocente" | "melhorada_1" | "melhorada_2";
+export type PersonalityId = "inocente" | "melhorada_1" | "melhorada_2" | "melhorada_3";
 
 export interface Personality {
   id: PersonalityId;
@@ -26,6 +27,7 @@ export interface Personality {
 
 const melhorada1Genome = parseGenome(melhorada1Json);
 const melhorada2Genome = parseGenome(melhorada2Json);
+const melhorada3Genome = parseGenome(melhorada3Json);
 
 export const PERSONALITIES: Personality[] = [
   {
@@ -47,6 +49,13 @@ export const PERSONALITIES: Personality[] = [
     description: "Evoluida vs inocente+melhorada_1. Bate a melhorada_1 (~80%), mas fraca vs inocente.",
     create: (name, rng, onDecision) =>
       new EvolvedBotPlayer(name, melhorada2Genome, rng, onDecision),
+  },
+  {
+    id: "melhorada_3",
+    label: "Melhorada 3",
+    description: "Round-robin (pior caso) vs o pool. A mais forte: ganha de TODAS (pior matchup ~68%).",
+    create: (name, rng, onDecision) =>
+      new EvolvedBotPlayer(name, melhorada3Genome, rng, onDecision),
   },
 ];
 

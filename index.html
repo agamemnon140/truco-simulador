@@ -98,8 +98,9 @@
     <div class="control">
       Equipe 1
       <select id="botA">
-        <option value="melhorada_1" selected>Melhorada 1</option>
+        <option value="melhorada_3" selected>Melhorada 3</option>
         <option value="melhorada_2">Melhorada 2</option>
+        <option value="melhorada_1">Melhorada 1</option>
         <option value="inocente">Inocente</option>
       </select>
       ×&nbsp;Equipe 2
@@ -107,6 +108,7 @@
         <option value="inocente" selected>Inocente</option>
         <option value="melhorada_1">Melhorada 1</option>
         <option value="melhorada_2">Melhorada 2</option>
+        <option value="melhorada_3">Melhorada 3</option>
       </select>
     </div>
     <div class="control">
@@ -709,6 +711,57 @@ var Truco = (() => {
     playTemp: 0.021871988449151464
   };
 
+  // src/genomes/melhorada_3.json
+  var melhorada_3_default = {
+    cardWeights: [
+      0.02330786737004622,
+      -0.9528627996735958,
+      1.1472020354997619,
+      1.091080833844001,
+      -0.5828416002387864,
+      0.03216497285727998,
+      -0.9676469159656421,
+      -1.877298532820676,
+      -0.47161881463357697,
+      1.096694147493814,
+      0.10316231364960612,
+      -0.5532868228285285,
+      -2.127267662413126,
+      0.08132129437937981,
+      1.321142053209161,
+      -0.6735068717616628,
+      -1.2627473189251157,
+      0.6657864214458842,
+      -0.9096542568390997,
+      -0.27660694630252325
+    ],
+    betWeights: [
+      0.23666479945597937,
+      -0.46792159047393866,
+      0.8920081049161471,
+      0.17366970655162514,
+      1.4887789802698963,
+      -0.4874670055677193,
+      -0.39882859953057126,
+      0.15650168784839028,
+      1.3381974934333871,
+      0.3639033801148371,
+      2.230572372849126,
+      -0.5546358425529001,
+      0.08087923799251238,
+      0.22885684254344285,
+      2.0256414057930163,
+      -0.669340520302993,
+      0.11318817435540586,
+      0.21871189104718378
+    ],
+    thrCall: 1.5131061321590165,
+    thrAccept: 1.6323383596479375,
+    thrRaise: 1.4361679643698224,
+    pBluff: -2.4694821155084985,
+    playTemp: 0.005161231686963019
+  };
+
   // src/players/bot.ts
   function maxStrength(view) {
     return view.rules.rankOrder.length + view.rules.manilhaSuitOrder.length - 1;
@@ -1193,6 +1246,7 @@ var Truco = (() => {
   // src/players/personalities.ts
   var melhorada1Genome = parseGenome(melhorada_1_default);
   var melhorada2Genome = parseGenome(melhorada_2_default);
+  var melhorada3Genome = parseGenome(melhorada_3_default);
   var PERSONALITIES = [
     {
       id: "inocente",
@@ -1211,6 +1265,12 @@ var Truco = (() => {
       label: "Melhorada 2",
       description: "Evoluida vs inocente+melhorada_1. Bate a melhorada_1 (~80%), mas fraca vs inocente.",
       create: (name, rng, onDecision) => new EvolvedBotPlayer(name, melhorada2Genome, rng, onDecision)
+    },
+    {
+      id: "melhorada_3",
+      label: "Melhorada 3",
+      description: "Round-robin (pior caso) vs o pool. A mais forte: ganha de TODAS (pior matchup ~68%).",
+      create: (name, rng, onDecision) => new EvolvedBotPlayer(name, melhorada3Genome, rng, onDecision)
     }
   ];
   function getPersonality(id) {

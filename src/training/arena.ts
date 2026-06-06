@@ -96,3 +96,34 @@ export async function evaluateContender(
     fitness: winRate + 0.02 * avgPointDiff,
   };
 }
+
+/** Desempenho do candidato contra CADA oponente do pool, separadamente. */
+export interface PoolStats {
+  perOpponent: { name: string; winRate: number; avgPointDiff: number }[];
+  /** Menor taxa de vitoria entre os oponentes (pior caso / round-robin). */
+  worstWinRate: number;
+  /** Media das taxas de vitoria. */
+  meanWinRate: number;
+}
+
+/**
+ * Avalia o candidato contra cada membro do `pool` SEPARADAMENTE (round-robin),
+ * reusando evaluateContender por oponente com as mesmas sementes. O pior caso
+ * (worstWinRate) e o sinal que evita especializacao/regressao.
+ */
+export async function evaluateVsPool(
+  candidate: Contender,
+  pool: readonly Contender[],
+  seeds: readonly number[],
+  rules: RuleSet,
+): Promise<PoolStats> {
+  const perOpponent: PoolStats["perOpponent"] = [];
+  for (const opp of pool) {
+    const s = await evaluateContender(candidate, [opp], seeds, rules);
+    perOpponent.push({ name: opp.name, winRate: s.winRate, avgPointDiff: s.avgPointDiff });
+  }
+  const rates = perOpponent.map((o) => o.winRate);
+  const worstWinRate = rates.length ? Math.min(...rates) : 0;
+  const meanWinRate = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
+  return { perOpponent, worstWinRate, meanWinRate };
+}
