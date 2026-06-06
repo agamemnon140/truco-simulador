@@ -235,15 +235,23 @@ decisão de **qual carta jogar** (com info sequencial). O deal de 8 cartas é
 grande demais para enumerar → **MCCFR** (amostra o deal). `npm run solve` resolve
 isso (parâmetro `ITERS2`).
 
-Resultado (vira 4♣, ~2M iterações): valor **~0.68 ao Time A** (fortemente
-favorecido — para perder, B precisa vencer **as duas** vazas restantes). O Time A
-**truca muito** (89% com manilha, 52% sem). A **decisão nova**: lidera a carta
-**mais fraca ~59%** das vezes e, tendo uma manilha, só a lidera ~55% — ou seja,
-às vezes **segura a manilha para a vaza 3**.
+Resultado (vira 4♣): valor **~0.66 ao Time A** (fortemente favorecido — para
+perder, B precisa vencer **as duas** vazas restantes). A estratégia GTO
+(tendências; `npm run solve` imprime, estável entre sementes):
+
+- **Quando trucar** (por melhor carta de A): é **polarizado** — truca quase
+  sempre com mão **fraca** (99%, semi-blefe: já está ganhando a mão) e com
+  **manilha** (89%, valor), mas **dá check com as fortes-sem-manilha (A/2/3, ~36%)**
+  (bluff-catchers que preferem showdown barato).
+- **Qual carta na vaza 2** (a outra sobra p/ a 3): tende a **liderar a fraca e
+  guardar a forte** (joga a mais forte só ~41%); com manilha, **guarda p/ a vaza
+  3 ~45–55%**. Seguidores cobrem um pouco mais quando estão **perdendo** a vaza
+  (amarram quando já ganham).
 
 > Ressalva: aqui a **exploitability exata** é cara (8 cartas) — a convergência é
-> monitorada pelo valor (clássico CFR converge devagar; o número ~0.68 ainda
-> drifta). É análise de tendência, não um valor cravado.
+> monitorada pelo valor (clássico CFR converge devagar; ~0.66 ainda drifta). São
+> **tendências** (estrutura robusta, % aproximada); números cravados pediriam
+> **CFR+**.
 
 > Próximo salto possível: CFR na **mão 1v1 completa** (3 vazas + escalada) com
 > abstração de cartas por força → bot **inexplorável** de verdade.

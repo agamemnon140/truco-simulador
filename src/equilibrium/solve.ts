@@ -14,7 +14,7 @@ import { CFRSolver } from "./cfr.js";
 import { VonNeumannGame } from "./games/vonNeumann.js";
 import { TrucoLastTrickGame } from "./games/trucoLastTrick.js";
 import { TrucoLastTrick2v2 } from "./games/trucoLastTrick2v2.js";
-import { TrucoTwoTricks2v2 } from "./games/trucoTwoTricks2v2.js";
+import { TT2State, TrucoTwoTricks2v2 } from "./games/trucoTwoTricks2v2.js";
 
 const ITERS = Number(process.env.ITERS) || 3000;
 const pct = (x: number) => `${(x * 100).toFixed(0)}%`;
@@ -185,6 +185,100 @@ function solveTruco2v2(vira: Card): void {
 }
 
 // ---------- 4) Duas ultimas vazas 2v2 (A ganhou a 1a) — MCCFR ----------
+const COMMON = TRUCO_PAULISTA.rankOrder.length; // manilha: strength >= COMMON
+const ORDER2 = [0, 1, 2, 3];
+const TEAM2 = [0, 1, 0, 1];
+
+function bucketOf(maxStrength: number): string {
+  if (maxStrength >= COMMON) return "manilha";
+  if (maxStrength >= 7) return "forte(A/2/3)";
+  if (maxStrength >= 4) return "medio(Q/J/K)";
+  return "fraco(4/6/7)";
+}
+
+function pickAction(acts: string[], strat: number[], rng: () => number): string {
+  let r = rng();
+  for (let i = 0; i < acts.length; i++) {
+    r -= strat[i]!;
+    if (r <= 0) return acts[i]!;
+  }
+  return acts[acts.length - 1]!;
+}
+
+/** Tendencias GTO (por amostragem): quando trucar e qual carta jogar na vaza 2. */
+function report2tricks(g: TrucoTwoTricks2v2, solver: CFRSolver<TT2State>, seed: number): void {
+  const rng = seededRng(seed);
+  const SAMPLES = 50000;
+  const tb = new Map<string, [number, number]>(); // P(truco) por faixa
+  const add = (k: string, v: number) => {
+    const e = tb.get(k) ?? [0, 0];
+    e[0] += v;
+    e[1] += 1;
+    tb.set(k, e);
+  };
+  let ldStrN = 0, ldStrS = 0, ldManN = 0, ldManS = 0;
+  let covWinN = 0, covWinS = 0, covLoseN = 0, covLoseS = 0, fSaveN = 0, fSaveS = 0;
+
+  for (let i = 0; i < SAMPLES; i++) {
+    const deal = g.sampleChance(rng);
+    const pt = solver.averageStrategy(g.infoSet(deal), 2)[0]!;
+    const aMax = Math.max(...deal.hands[0]!, ...deal.hands[2]!);
+    add(bucketOf(aMax), pt);
+
+    let st = g.next(deal, "check"); // caminha a vaza 2 (sem truco) pela estrategia media
+    while (!g.isTerminal(st)) {
+      const seat = ORDER2[st.v2.length]!;
+      const hand = st.hands[seat]!;
+      const acts = g.actions(st);
+      const strat = solver.averageStrategy(g.infoSet(st), acts.length);
+      const manIdx = acts.findIndex((a) => Number(a) >= COMMON);
+      const hasOneMan = hand.filter((x) => x >= COMMON).length === 1;
+      if (st.v2.length === 0) {
+        // lider (assento 0): acts asc -> strat[1] = carta mais forte.
+        if (acts.length === 2) {
+          ldStrN++;
+          ldStrS += strat[1]!;
+        }
+        if (hasOneMan && manIdx >= 0) {
+          ldManN++;
+          ldManS += strat[manIdx]!;
+        }
+      } else {
+        const tableMax = Math.max(...st.v2.map((p) => p[1]));
+        const bestSeat = st.v2.find((p) => p[1] === tableMax)![0];
+        const ownWin = TEAM2[bestSeat]! === TEAM2[seat]!;
+        let pCover = 0;
+        for (let k = 0; k < acts.length; k++) if (Number(acts[k]) > tableMax) pCover += strat[k]!;
+        if (ownWin) {
+          covWinN++;
+          covWinS += pCover;
+        } else {
+          covLoseN++;
+          covLoseS += pCover;
+        }
+        if (hasOneMan && manIdx >= 0) {
+          fSaveN++;
+          fSaveS += 1 - strat[manIdx]!; // P(NAO jogar a manilha) = guardar p/ a vaza 3
+        }
+      }
+      st = g.next(st, pickAction(acts, strat, rng));
+    }
+  }
+
+  console.log(`\n— Estrategia GTO (tendencias, semente ${seed}) —`);
+  console.log("QUANDO TRUCAR — P(pedir truco) pela MELHOR carta do Time A:");
+  for (const k of ["fraco(4/6/7)", "medio(Q/J/K)", "forte(A/2/3)", "manilha"]) {
+    const e = tb.get(k);
+    if (e && e[1] > 0) console.log(`  ${k.padEnd(12)} ${pct(e[0] / e[1])}`);
+  }
+  console.log("QUAL CARTA NA VAZA 2 (a outra sobra p/ a vaza 3):");
+  console.log(`  lider: P(jogar a carta MAIS FORTE ja na vaza 2) = ${pct(ldStrS / Math.max(1, ldStrN))}`);
+  console.log(`  lider c/ 1 manilha: P(jogar a MANILHA agora) = ${pct(ldManS / Math.max(1, ldManN))} (resto guarda p/ vaza 3)`);
+  console.log(`  seguidor c/ 1 manilha: P(GUARDAR a manilha p/ a vaza 3) = ${pct(fSaveS / Math.max(1, fSaveN))}`);
+  console.log(`  seguidor: P(cobrir a mesa) — meu time JA ganha a vaza (amarrar): ${pct(covWinS / Math.max(1, covWinN))}`);
+  console.log(`  seguidor: P(cobrir a mesa) — meu time PERDE a vaza: ${pct(covLoseS / Math.max(1, covLoseN))}`);
+}
+
 function solveTwoTricks(vira: Card): void {
   console.log(
     `\n══════ GTO 2v2 — DUAS ultimas vazas (A ganhou a 1a) — vira ${cardToString(vira)} ══════`,
@@ -206,52 +300,11 @@ function solveTwoTricks(vira: Card): void {
     console.log(`  iter ${String(((b + 1) * ITERS2) / blocks).padStart(7)}: valor(media,amostrado)=${v.toFixed(4)}`);
   }
 
-  // Leitura por amostragem: frequencia de truco e tendencia da carta liderada.
-  const common = TRUCO_PAULISTA.rankOrder.length; // 10 (manilha: strength >= 10)
-  const rng = seededRng(7);
-  const SAMPLES = 60000;
-  let nA = 0, trucoAll = 0, nMan = 0, trucoMan = 0, nNo = 0, trucoNo = 0;
-  let leadN = 0, leadLower = 0, oneManN = 0, leadMan = 0;
-  for (let i = 0; i < SAMPLES; i++) {
-    const deal = g.sampleChance(rng);
-    const pTruco = solver.averageStrategy(g.infoSet(deal), 2)[0]!; // [truco, check]
-    nA++;
-    trucoAll += pTruco;
-    const aCards = [...deal.hands[0]!, ...deal.hands[2]!];
-    if (aCards.some((x) => x >= common)) {
-      nMan++;
-      trucoMan += pTruco;
-    } else {
-      nNo++;
-      trucoNo += pTruco;
-    }
-    // Decisao de carta: apos check, assento 0 (Time A) lidera a vaza 2.
-    const afterCheck = g.next(deal, "check");
-    const acts = g.actions(afterCheck); // forcas distintas do assento 0 (asc)
-    if (acts.length === 2) {
-      const strat = solver.averageStrategy(g.infoSet(afterCheck), 2);
-      leadN++;
-      leadLower += strat[0]!; // acts[0] = carta mais fraca
-      const h0 = deal.hands[0]!;
-      const mans = h0.filter((x) => x >= common);
-      if (mans.length === 1) {
-        oneManN++;
-        const idx = acts.indexOf(String(mans[0]));
-        if (idx >= 0) leadMan += strat[idx]!;
-      }
-    }
-  }
-  console.log(`\nvalor final (ao Time A) ~ ${(solver.averageStrategyValueSampled(40000, seededRng(31))).toFixed(4)}`);
-  console.log("Frequencia de TRUCO do Time A (inicio da vaza 2):");
-  console.log(`  geral:            ${pct(trucoAll / nA)}`);
-  console.log(`  COM manilha:      ${pct(trucoMan / Math.max(1, nMan))}`);
-  console.log(`  SEM manilha:      ${pct(trucoNo / Math.max(1, nNo))}`);
-  console.log("\nDecisao NOVA — qual carta o lider (assento 0) joga na vaza 2:");
-  console.log(`  P(liderar a carta MAIS FRACA): ${pct(leadLower / Math.max(1, leadN))}`);
   console.log(
-    `  tendo 1 manilha + 1 fraca -> P(liderar a MANILHA): ${pct(leadMan / Math.max(1, oneManN))} ` +
-      `(o resto = segura a manilha p/ a vaza 3)`,
+    `\nvalor final (ao Time A) ~ ${solver.averageStrategyValueSampled(40000, seededRng(31)).toFixed(4)}`,
   );
+  report2tricks(g, solver, 7);
+  report2tricks(g, solver, 19); // 2a semente: se baterem ~, sao confiaveis
 }
 
 const card = (rank: Rank, suit: Suit): Card => ({ rank, suit });
