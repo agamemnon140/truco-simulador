@@ -475,11 +475,11 @@
   <!-- ============ CAMPANHA (vitória) ============ -->
   <div id="screen-campaign-win" class="screen hidden">
     <div class="big-center" id="cmpwin-stage">
-      <div class="champ-trophy">🏆</div>
-      <div class="who" style="font-size:2.4em">CAMPEÃO DO TRUCO!</div>
+      <div class="champ-trophy" id="cmpwin-icon">🏆</div>
+      <div class="who" id="cmpwin-title" style="font-size:2.4em">CAMPEÃO DO TRUCO!</div>
       <div class="hint" id="cmpwin-sub"></div>
       <div id="cmpwin-score" style="font-size:1.4em;color:#7ee787;font-weight:800"></div>
-      <div class="champ-flag">🇧🇷</div>
+      <div class="champ-flag" id="cmpwin-flag">🇧🇷</div>
       <div class="row" style="justify-content:center">
         <input type="text" id="cmpwin-name" placeholder="seu nome" style="width:180px" />
         <button id="btn-cmpwin-save" class="btn-accept">Salvar recorde</button>
@@ -538,7 +538,7 @@
     </div>
   </div>
 
-  <div id="version"><!--VERSION_START-->Truco v0.1.0 · 2026-06-06<!--VERSION_END--></div>
+  <div id="version"><!--VERSION_START-->Truco v0.1.0 · 2026-06-07<!--VERSION_END--></div>
 
   <script src="truco.bundle.js"></script>
   <script>
@@ -737,15 +737,22 @@
 
     // personalidades das IAs (A=mais fraca ... F=mais forte): nome, cara e jeito de jogar
     const CHARACTERS = {
-      inocente:    { letra: "A", emoji: "😅", persona: "Os Novatos — jogam no susto, sem manha.", names: ["Aldo", "Amélia"] },
-      melhorada_1: { letra: "B", emoji: "😤", persona: "Os Afobados — partem pra cima e blefam demais.", names: ["Beto", "Bia"] },
-      melhorada_2: { letra: "C", emoji: "🤓", persona: "Os Estrategistas — fortes contra os bons, tropeçam no básico.", names: ["Caio", "Carla"] },
-      melhorada_3: { letra: "D", emoji: "😎", persona: "Os Veteranos — sólidos, ganham de todo mundo.", names: ["Dito", "Dora"] },
-      melhorada_4: { letra: "E", emoji: "🦊", persona: "Os Trapaceiros — leitura não-linear, te confundem.", names: ["Edu", "Elza"] },
-      melhorada_5: { letra: "F", emoji: "👑", persona: "Os Campeões — não perdem pra ninguém.", names: ["Fábio", "Fátima"] },
+      inocente:    { letra: "A", emoji: "😅", nick: "Os Novatos",       persona: "jogam no susto, sem manha.", names: ["Aldo", "Amélia"] },
+      melhorada_1: { letra: "B", emoji: "😤", nick: "Os Afobados",      persona: "partem pra cima e blefam demais.", names: ["Beto", "Bia"] },
+      melhorada_2: { letra: "C", emoji: "🤓", nick: "Os Estrategistas", persona: "fortes contra os bons, tropeçam no básico.", names: ["Caio", "Carla"] },
+      melhorada_3: { letra: "D", emoji: "😎", nick: "Os Veteranos",     persona: "sólidos, ganham de todo mundo.", names: ["Dito", "Dora"] },
+      melhorada_4: { letra: "E", emoji: "🦊", nick: "Os Espertos",      persona: "leitura não-linear, te confundem.", names: ["Edu", "Elza"] },
+      melhorada_5: { letra: "F", emoji: "👑", nick: "Os Campeões",      persona: "não perdem pra ninguém.", names: ["Fábio", "Fátima"] },
+      melhorada_6: { letra: "–", emoji: "🤝", nick: "Elivélton",        persona: "parceiro veterano: lê os sinais e joga junto.", names: ["Elivélton", "Elivete"] },
+      maco:        { letra: "G", emoji: "🃏", nick: "Os Trombadinhas",  persona: "TRAPACEIAM na distribuição: maço no baralho, 4 cartas e melam mão ruim.", names: ["Geleia", "Gugelmim"] },
     };
     const BOT_NAMES = {}; for (const k in CHARACTERS) BOT_NAMES[k] = CHARACTERS[k].names;
-    const charOf = (id) => CHARACTERS[id] || { letra: "?", emoji: "🤖", persona: "", names: [id] };
+    const charOf = (id) => CHARACTERS[id] || { letra: "?", emoji: "🤖", nick: id, persona: "", names: [id] };
+    // Personalidades VISÍVEIS para escolha (m6/m7 ocultas; maco entra como dupla G).
+    const SELECT_IDS = ["inocente", "melhorada_1", "melhorada_2", "melhorada_3", "melhorada_4", "melhorada_5", "maco"];
+    // Parceiro de campanha: Elivélton (m6) sugerido + as duplas comuns.
+    const PARTNER_IDS = ["melhorada_6", "inocente", "melhorada_1", "melhorada_2", "melhorada_3", "melhorada_4", "melhorada_5"];
+    const persOption = (id) => { const c = charOf(id); return c.emoji + " " + c.nick + (id !== "melhorada_6" && c.names.length ? " (" + c.names.join("/") + ")" : ""); };
 
     const SCREENS = ["screen-title", "screen-newgame", "screen-campaign", "screen-campaign-win", "screen-highscore", "screen-options", "screen-info", "screen-game", "screen-handover", "screen-goodbye"];
     function showScreen(id) { SCREENS.forEach((s) => $(s).classList.toggle("hidden", s !== id)); }
@@ -793,14 +800,15 @@
     const pickFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
     $("btn-campaign").onclick = () => {
       const sel = $("cmp-partner"); sel.innerHTML = "";
-      PERS.forEach((p) => { const o = document.createElement("option"); o.value = p.id; o.textContent = charOf(p.id).emoji + " " + p.label + " (" + (BOT_NAMES[p.id] || []).join("/") + ")"; if (p.id === "melhorada_3") o.selected = true; sel.appendChild(o); });
-      $("cmp-ladder").textContent = GROUPS.map((g, i) => { const s = g.map((id) => charOf(id).letra).join(" ou "); return i === 0 ? s : "(" + s + ")"; }).join("  →  ");
+      PARTNER_IDS.forEach((id) => { const o = document.createElement("option"); o.value = id; o.textContent = persOption(id); if (id === "melhorada_6") o.selected = true; sel.appendChild(o); });
+      $("cmp-ladder").textContent = GROUPS.map((g, i) => { const s = g.map((id) => charOf(id).letra).join(" ou "); return i === 0 ? s : "(" + s + ")"; }).join("  →  ") + "  →  " + charOf("maco").letra;
       showScreen("screen-campaign");
     };
     $("btn-campaign-back").onclick = () => showScreen("screen-title");
     $("btn-campaign-win-back").onclick = () => showScreen("screen-title");
     $("btn-campaign-start").onclick = () => {
-      S.campaign = { name: ($("cmp-name").value.trim() || "Você"), partnerBot: $("cmp-partner").value, oppIdx: 0, ladder: GROUPS.map(pickFrom), startMs: Date.now(), diffs: [] };
+      // 4 jogos: 3 sorteados + Os Trombadinhas (maco, G) sempre por último.
+      S.campaign = { name: ($("cmp-name").value.trim() || "Você"), partnerBot: $("cmp-partner").value, oppIdx: 0, ladder: [...GROUPS.map(pickFrom), "maco"], startMs: Date.now(), diffs: [], wins: 0 };
       startCampaignMatch();
     };
     function startCampaignMatch() {
@@ -835,21 +843,27 @@
     $("btn-highscore-back").onclick = () => showScreen("screen-title");
     $("btn-cmpwin-scores").onclick = () => { renderHighScores(); showScreen("screen-highscore"); };
 
-    function showCampaignWin() {
+    // Fim da campanha (venceu as 4 OU foi derrotado): mostra o resultado e pede o
+    // nome para registrar nos Recordes.
+    function finishCampaign(won) {
       resetPump();
-      const c = S.campaign;
-      const lab = charOf(c.partnerBot).names.join(" & ");
-      const wins = c.diffs.length;                     // 3 ao fechar a campanha
+      const c = S.campaign; if (!c) return;
+      const lab = charOf(c.partnerBot).nick;
+      const wins = c.wins || 0;
       const sumDiff = c.diffs.reduce((a, b) => a + b, 0);
       const seconds = Math.max(1, Math.round((Date.now() - c.startMs) / 1000));
       const score = 1000 * wins + 100 * sumDiff - seconds;
-      $("cmpwin-sub").textContent = "Você e " + lab + " venceram as 3 duplas! 🎉";
+      $("cmpwin-icon").textContent = won ? "🏆" : "🎮";
+      $("cmpwin-title").textContent = won ? "CAMPEÃO DO TRUCO!" : "Campanha encerrada";
+      $("cmpwin-flag").style.display = won ? "" : "none";
+      $("cmpwin-sub").textContent = won
+        ? ("Você e " + lab + " venceram as 4 duplas! 🎉")
+        : ("Você venceu " + wins + " de 4. Registre seu resultado:");
       $("cmpwin-score").textContent = score + " pontos";
       const nameInp = $("cmpwin-name"); nameInp.value = c.name || "";
       const saveBtn = $("btn-cmpwin-save"); saveBtn.disabled = false; saveBtn.textContent = "Salvar recorde";
-      // dados pendentes para salvar
       S.cmpResult = { score, wins, sumDiff, seconds, partnerBot: c.partnerBot };
-      S.campaign = null; showScreen("screen-campaign-win"); Audio.sfxWin(true);
+      S.campaign = null; showScreen("screen-campaign-win"); Audio.sfxWin(won);
     }
     $("btn-cmpwin-save").onclick = () => {
       if (!S.cmpResult) return;
@@ -884,11 +898,10 @@
     // ---------- Info: fatores ----------
     (function fillInfo() {
       const box = $("info-factors");
-      PERS.forEach((p) => {
-        const c = charOf(p.id);
+      SELECT_IDS.forEach((id) => {
+        const c = charOf(id);
         const d = document.createElement("div"); d.className = "factor";
-        d.innerHTML = c.emoji + " <b>" + c.letra + " · " + (BOT_NAMES[p.id] || []).join(" & ") + "</b> — " + c.persona +
-          " <span class='who'>(" + p.description + ")</span>";
+        d.innerHTML = c.emoji + " <b>" + c.letra + " · " + c.nick + " (" + c.names.join(" & ") + ")</b> — " + c.persona;
         box.appendChild(d);
       });
     })();
@@ -924,10 +937,10 @@
           row.appendChild(inp);
         } else {
           const sel = document.createElement("select");
-          PERS.forEach((p) => {
-            const o = document.createElement("option"); o.value = p.id;
-            o.textContent = p.label + " (" + (BOT_NAMES[p.id] || []).join("/") + ")";
-            if (p.id === cfg.botId) o.selected = true; sel.appendChild(o);
+          SELECT_IDS.forEach((id) => {
+            const o = document.createElement("option"); o.value = id;
+            o.textContent = persOption(id);
+            if (id === cfg.botId) o.selected = true; sel.appendChild(o);
           });
           sel.onchange = () => { seatCfg[seat].botId = sel.value; };
           row.appendChild(sel);
@@ -1294,7 +1307,7 @@
         case "matchEnd":
           S.gameOver = true; S.scores = ev.scores.slice(); S.turnSeat = -1; S.handValue = 1; S.stakeName = "";
           S.matchWinner = ev.winningTeam;
-          if (S.campaign && ev.winningTeam === 0) S.campaign.diffs.push((ev.scores[0] || 0) - (ev.scores[1] || 0));
+          if (S.campaign) { S.campaign.diffs.push((ev.scores[0] || 0) - (ev.scores[1] || 0)); if (ev.winningTeam === 0) S.campaign.wins++; }
           S.react = {}; for (let s = 0; s < 4; s++) S.react[s] = teamOf(s) === ev.winningTeam ? "🥳" : "😞";
           S.banner = { type: "match", title: teamLabel(ev.winningTeam) + " VENCEU! 🏆", sub: ev.scores.map((s, t) => teamLabel(t) + " " + s).join("   |   ") };
           Audio.sfxWin(ev.winningTeam === teamOf(S.persp));
@@ -1398,16 +1411,16 @@
             const c = S.campaign, tierId = c.ladder[c.oppIdx], letra = charOf(tierId).letra, won = S.matchWinner === 0;
             if (won && c.oppIdx >= c.ladder.length - 1) {
               msg.textContent = "Você venceu " + charOf(tierId).emoji + " a dupla " + letra + " e FECHOU a campanha!";
-              pa.appendChild(mkBtn("🏆 Ver vitória", "btn-accept", showCampaignWin));
+              pa.appendChild(mkBtn("🏆 Ver resultado", "btn-accept", () => finishCampaign(true)));
             } else if (won) {
               const nx = charOf(c.ladder[c.oppIdx + 1]);
               msg.textContent = "Você derrotou a dupla " + letra + "!  Próximo desafio: " + nx.emoji + " dupla " + nx.letra + " — " + nx.persona;
               pa.appendChild(mkBtn("Próxima dupla →", "btn-accept", () => { c.oppIdx++; startCampaignMatch(); }));
-              pa.appendChild(mkBtn("Desistir", "btn-run", () => { S.campaign = null; resetPump(); showScreen("screen-title"); }));
+              pa.appendChild(mkBtn("Encerrar e registrar", "btn-run", () => finishCampaign(false)));
             } else {
               msg.textContent = "A dupla " + letra + " te venceu — campanha encerrada no jogo " + (c.oppIdx + 1) + "/" + c.ladder.length + ".";
               pa.appendChild(mkBtn("Tentar de novo", "btn-accept", startCampaignMatch));
-              pa.appendChild(mkBtn("Voltar ao menu", "btn-run", () => { S.campaign = null; resetPump(); showScreen("screen-title"); }));
+              pa.appendChild(mkBtn("Encerrar e registrar", "btn-run", () => finishCampaign(false)));
             }
           } else {
             msg.textContent = "Partida encerrada.";

@@ -279,6 +279,13 @@ var Truco = (() => {
       }
     }
     const cheat = players[dealerSeat]?.cheat;
+    const macoEngage = (() => {
+      if (!cheat) return 0;
+      let maxOther = -Infinity;
+      for (let t = 0; t < scores.length; t++) if (t !== dealerTeam) maxOther = Math.max(maxOther, scores[t]);
+      const losing = maxOther > (scores[dealerTeam] ?? 0);
+      return losing && cheat.macoStrengthLosing !== void 0 ? cheat.macoStrengthLosing : cheat.macoStrength ?? 0;
+    })();
     const macoScore = (d) => {
       const w = cheat?.macoWeights ?? { partner: 3, dealer: 2, opp: 1 };
       let sc = 0;
@@ -291,7 +298,7 @@ var Truco = (() => {
     };
     const dealOnce = () => {
       let d = deal(n, rules.cardsPerPlayer, cfg.rng);
-      if (cheat?.macoStrength && rng() < cheat.macoStrength) {
+      if (cheat && macoEngage && rng() < macoEngage) {
         const K = Math.max(2, cheat.macoAttempts ?? 4);
         const cands = [d];
         for (let k = 1; k < K; k++) cands.push(deal(n, rules.cardsPerPlayer, cfg.rng));
@@ -1935,7 +1942,6 @@ var Truco = (() => {
   };
 
   // src/players/macoPlayer.ts
-  var DEFAULT_MACO_STRENGTH = 0.6;
   function macoCheat(macoStrength) {
     return {
       macoStrength,
@@ -1944,6 +1950,9 @@ var Truco = (() => {
       macoWeights: { partner: 3, dealer: 2, opp: 1 },
       extraCardProb: 0.3 * macoStrength
     };
+  }
+  function macoCheatDynamic(base, losing) {
+    return { ...macoCheat(base), macoStrengthLosing: losing };
   }
   var MacoPlayer = class {
     constructor(name, genome, opts, rng, onDecision) {
@@ -2053,11 +2062,11 @@ var Truco = (() => {
     {
       id: "maco",
       label: "Ma\xE7o (trapaceiro)",
-      description: "Joga como a m6, mas TRAPACEIA: d\xE1 'ma\xE7o' no baralho, 4 cartas ao parceiro e 'mela' m\xE3os ruins.",
+      description: "Joga como a m6, mas TRAPACEIA: ma\xE7o no baralho (mais forte quando perde), 4 cartas ao parceiro e 'mela' m\xE3os ruins.",
       create: (name, rng, onDecision) => new MacoPlayer(
         name,
         melhorada6Genome,
-        { cheat: macoCheat(DEFAULT_MACO_STRENGTH), rules: TRUCO_PAULISTA },
+        { cheat: macoCheatDynamic(0.2, 0.8), rules: TRUCO_PAULISTA },
         rng,
         onDecision
       )
